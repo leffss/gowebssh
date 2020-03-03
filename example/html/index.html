@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>webssh</title>
+    <link rel="icon" href="./favicon.ico"/>
+    <link rel="stylesheet" href="./xterm/xterm.css"/>
+    <link rel="stylesheet" href="./xterm/style.css"/>
+    <link rel="stylesheet" href="./bootstrap.min.css"/>
+    <style>
+        .input-width {
+            width: 20%;
+            display: inline-block;
+        }
+
+        .hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div style="margin-top: 10px" id="form">
+    <form class="form-horizontal">
+        <div class="form-group">
+            <label class="col-sm-2 control-label">主机地址</label>
+            <div class="col-sm-10">
+                <input type="text" class="input-width form-control" id="host" placeholder="host" value="192.168.223.111">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-sm-2 control-label">端口</label>
+            <div class="col-sm-10">
+                <input type="text" class="input-width form-control" id="port" value="22">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-sm-2 control-label">用户名</label>
+            <div class="col-sm-10">
+                <input type="text" class="input-width form-control" id="user" placeholder="user" value="root">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-sm-2 control-label">认证类型</label>
+            <div class="col-sm-10">
+                <label class="radio-inline">
+                    <input type="radio" name="auth" id="inlineRadio1" value="pwd" checked> 密码认证
+                </label>
+                <label class="radio-inline">
+                    <input type="radio" name="auth" id="inlineRadio2" value="key"> 秘钥认证
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-sm-2 control-label">密码</label>
+            <div class="col-sm-10">
+                <input type="password" class="input-width form-control" id="password" placeholder="password" value="123456">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-sm-2 control-label">秘钥文件</label>
+            <div class="col-sm-10">
+                <input type="file" id="pkey" onchange="readFile('pkey', 'pkey_res');">
+				<span id="pkey_res" hidden><span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-sm-2 control-label"></label>
+            <div class="col-sm-10">
+                <span id="helpBlock" class="help-block">
+                   注意:
+                    <p style="color: red">1、当认证类型为密码认证时, 秘钥输入框的内容将被忽略</p>
+                    <p style="color: red">2、当认证类型为秘钥认证时, 如果密码输入框不为空, 则密码输入框的内容将作为秘钥的解密密码</p>
+                </span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <button type="button" class="btn btn-default" onclick="ws_connect()">登&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;录
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div id="webssh-terminal" class="hide">
+	<div id="terminal"></div>
+</div>
+
+<script type="text/javascript" src="./jquery.min.js"></script>
+<script type="text/javascript" src="./xterm/xterm.js"></script>
+<script type="text/javascript" src="./webssh.js"></script>
+
+</body>
+</html>
