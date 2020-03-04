@@ -2,8 +2,9 @@ package main
 
 import (
 	"log"
-	"net"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/leffss/gowebssh"
@@ -13,17 +14,13 @@ func main() {
 	http.Handle("/", http.FileServer(http.Dir("./html")))
 	http.HandleFunc("/api/ssh", func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("Sec-WebSocket-Key")
-		addr := r.URL.Query().Get("addr")
-		var webssh = gowebssh.NewWebSSH()
+		webssh := gowebssh.NewWebSSH()
 		// term 可以使用 ansi, linux, vt100, xterm, dumb，除了 dumb外其他都有颜色显示, 默认 xterm
 		webssh.SetTerm("linux")
 		webssh.SetBuffSize(1024)
-
-		conn, err := net.Dial("tcp", addr)
-		if err != nil {
-			log.Panic(err)
-		}
-		webssh.AddSSHConn(id, conn)
+		webssh.SetId(id)
+		webssh.SetConnTimeOut(5 * time.Second)
+		webssh.SetLogger(log.New(os.Stderr, "[webssh] ", log.Ltime|log.Ldate))
 
 		upGrader := websocket.Upgrader{
 			// cross origin domain
@@ -42,9 +39,9 @@ func main() {
 			log.Panic(err)
 		}
 
-		webssh.AddWebsocket(id, ws)
+		webssh.AddWebsocket(ws)
 	})
 
-	log.Println("start")
+	log.Println("start webssh server")
 	http.ListenAndServe(":8000", nil)
 }

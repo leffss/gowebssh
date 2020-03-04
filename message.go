@@ -3,13 +3,14 @@ package gowebssh
 type messageType string
 
 const (
+	messageTypeAddr     = "addr"
+	messageTypeLogin     = "login"
+	messageTypePassword  = "password"
+	messageTypePublickey = "publickey"
 	messageTypeStdin     = "stdin"
 	messageTypeStdout    = "stdout"
 	messageTypeStderr    = "stderr"
 	messageTypeResize    = "resize"
-	messageTypeLogin     = "login"
-	messageTypePassword  = "password"
-	messageTypePublickey = "publickey"
 )
 
 type message struct {

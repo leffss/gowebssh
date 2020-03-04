@@ -94,7 +94,7 @@ function ws_connect() {
 		cursorBlink: true
 	});
 	
-    var socketURL = connect_info.protocol + connect_info.hostname + connect_info.ws_port + '/api/ssh?addr=' + connect_info.host + ':' + connect_info.port;
+    var socketURL = connect_info.protocol + connect_info.hostname + connect_info.ws_port + '/api/ssh';
 
     var socket = new WebSocket(socketURL);
 	
@@ -104,6 +104,7 @@ function ws_connect() {
         term.open(document.getElementById('terminal'));
 		term.focus();
 		$("body").attr("onbeforeunload",'checkwindow()'); //增加刷新关闭提示属性
+		socket.send(JSON.stringify({ type: "addr", data: utoa(connect_info.host + ":" + connect_info.port) }));
 		socket.send(JSON.stringify({ type: "login", data: utoa(connect_info.user) }));
 		if (connect_info.auth === 'pwd') {
 			socket.send(JSON.stringify({ type: "password", data: utoa(connect_info.passwd) }));
