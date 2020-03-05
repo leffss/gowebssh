@@ -16,7 +16,7 @@ func main() {
 		id := r.Header.Get("Sec-WebSocket-Key")
 		webssh := gowebssh.NewWebSSH()
 		// term 可以使用 ansi, linux, vt100, xterm, dumb，除了 dumb外其他都有颜色显示, 默认 xterm
-		webssh.SetTerm("linux")
+		webssh.SetTerm(gowebssh.TermXterm)
 		webssh.SetBuffSize(1024)
 		webssh.SetId(id)
 		webssh.SetConnTimeOut(5 * time.Second)
@@ -43,5 +43,5 @@ func main() {
 	})
 
 	log.Println("start webssh server")
-	http.ListenAndServe(":8000", nil)
+	_ = http.ListenAndServe(":8000", nil)
 }

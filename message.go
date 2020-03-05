@@ -3,7 +3,8 @@ package gowebssh
 type messageType string
 
 const (
-	messageTypeAddr     = "addr"
+	messageTypeAddr		 = "addr"
+	messageTypeTerm      = "term"
 	messageTypeLogin     = "login"
 	messageTypePassword  = "password"
 	messageTypePublickey = "publickey"

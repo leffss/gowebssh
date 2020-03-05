@@ -2,7 +2,6 @@ package gowebssh
 
 import (
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/url"
@@ -13,55 +12,57 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// WebSSH Websocket和ssh
+// WebSSH 管理 Websocket 和 ssh 连接
 type WebSSH struct {
 	id string
 	buffSize uint32
 	term string
-	sshconn net.Conn
+	sshConn net.Conn
 	websocket *websocket.Conn
 	connTimeout time.Duration
 	logger   *log.Logger
 }
 
-// NewWebSSH 构造函数
+// WebSSH 构造函数
 func NewWebSSH() *WebSSH {
 	return &WebSSH{
-		buffSize: 1024,
-		logger:   log.New(ioutil.Discard, "[webssh] ", log.Ltime|log.Ldate),
-		term: "xterm",
-		connTimeout: 30 * time.Second,
+		buffSize: DefaultBuffSize,
+		logger:   DefaultLogger,
+		term: DefaultTerm,
+		connTimeout: DefaultConnTimeout,
 	}
 }
 
-// SetLogger set logger
 func (ws *WebSSH) SetLogger(logger *log.Logger) {
 	ws.logger = logger
 }
 
-// SetBuffSize set buff size
+// 设置 buff 大小
 func (ws *WebSSH) SetBuffSize(buffSize uint32) {
 	ws.buffSize = buffSize
 }
 
-// SetLogOut set logger output
+// 设置日志输出
 func (ws *WebSSH) SetLogOut(out io.Writer) {
 	ws.logger.SetOutput(out)
 }
 
+// 设置终端 term 类型
 func (ws *WebSSH) SetTerm(term string) {
 	ws.term = term
 }
 
+// 设置连接 id
 func (ws *WebSSH) SetId(id string) {
 	ws.id = id
 }
 
+// 设置连接超时时间
 func (ws *WebSSH) SetConnTimeOut(connTimeout time.Duration) {
 	ws.connTimeout = connTimeout
 }
 
-// AddWebsocket add websocket connect
+// 添加 websocket 连接
 func (ws *WebSSH) AddWebsocket(conn *websocket.Conn) {
 	ws.logger.Printf("(%s) websocket connected", ws.id)
 	ws.websocket = conn
@@ -70,23 +71,29 @@ func (ws *WebSSH) AddWebsocket(conn *websocket.Conn) {
 	}()
 }
 
-// AddSSHConn add ssh connect
+// 添加 ssh 连接
 func (ws *WebSSH) AddSSHConn(conn net.Conn) {
 	ws.logger.Printf("(%s) ssh connected", ws.id)
-	ws.sshconn = conn
+	ws.sshConn = conn
 }
 
-// server connect ssh connect to websocket
+// 处理 websocket 连接发送过来的数据
 func (ws *WebSSH) server() error {
-	defer ws.websocket.Close()
+	defer func(){
+		_ = ws.websocket.Close()
+	}()
 
 	config := ssh.ClientConfig{
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout: ws.connTimeout,
+		Timeout:         ws.connTimeout,
 	}
 
 	var session *ssh.Session
 	var stdin io.WriteCloser
+	var hasAddr bool
+	var hasLogin bool
+	var hasAuth bool
+	var hasTerm bool
 
 	for {
 		var msg message
@@ -97,6 +104,9 @@ func (ws *WebSSH) server() error {
 
 		switch msg.Type {
 		case messageTypeAddr:
+			if hasAddr {
+				continue
+			}
 			addr, _ := url.QueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) connect addr %s", ws.id, addr)
 			conn, err := net.Dial("tcp", addr)
@@ -105,28 +115,61 @@ func (ws *WebSSH) server() error {
 				return errors.Wrap(err, "connect addr " + addr + " error")
 			}
 			ws.AddSSHConn(conn)
-			defer ws.sshconn.Close()
+			defer func() {
+				_ = ws.sshConn.Close()
+			}()
+			hasAddr = true
+		case messageTypeTerm:
+			if hasTerm {
+				continue
+			}
+			term, _ := url.QueryUnescape(string(msg.Data))
+			ws.logger.Printf("(%s) set term %s", ws.id, term)
+			ws.SetTerm(term)
+			hasTerm = true
 		case messageTypeLogin:
+			if hasLogin {
+				continue
+			}
 			config.User, _ = url.QueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) login with user %s", ws.id, config.User)
+			hasLogin = true
 		case messageTypePassword:
+			if hasAuth {
+				continue
+			}
+
+			if ws.sshConn == nil {
+				ws.logger.Printf("must connect addr first")
+				continue
+			}
+
+			if config.User == "" {
+				ws.logger.Printf("must set user first")
+				continue
+			}
+
 			password, _ := url.QueryUnescape(string(msg.Data))
 			//ws.logger.Printf("(%s) auth with password %s", ws.id, password)
 			ws.logger.Printf("(%s) auth with password ******", ws.id)
 			config.Auth = append(config.Auth, ssh.Password(password))
-			session, err = ws.newSSHXtermSession(ws.sshconn, &config, msg)
+			session, err = ws.newSSHXtermSession(ws.sshConn, &config, msg)
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("password login error\r\n")})
 				return errors.Wrap(err, "password login error")
 			}
-			defer session.Close()
+			defer func() {
+				_ = session.Close()
+			}()
 
 			stdin, err = session.StdinPipe()
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("get stdin channel error\r\n")})
 				return errors.Wrap(err, "get stdin channel error")
 			}
-			defer stdin.Close()
+			defer func() {
+				_ = stdin.Close()
+			}()
 
 			err = ws.transformOutput(session, ws.websocket)
 			if err != nil {
@@ -140,7 +183,23 @@ func (ws *WebSSH) server() error {
 				return errors.Wrap(err, "start a login shell error")
 			}
 
+			hasAuth = true
+
 		case messageTypePublickey:
+			if hasAuth {
+				continue
+			}
+
+			if ws.sshConn == nil {
+				ws.logger.Printf("must connect addr first")
+				continue
+			}
+
+			if config.User == "" {
+				ws.logger.Printf("must set user first")
+				continue
+			}
+
 			//pemBytes, err := ioutil.ReadFile("/location/to/YOUR.pem")
 			//if err != nil {
 			//	return errors.Wrap(err, "publickey")
@@ -159,19 +218,23 @@ func (ws *WebSSH) server() error {
 			}
 
 			config.Auth = append(config.Auth, ssh.PublicKeys(signer))
-			session, err = ws.newSSHXtermSession(ws.sshconn, &config, msg)
+			session, err = ws.newSSHXtermSession(ws.sshConn, &config, msg)
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("publickey login error\r\n")})
 				return errors.Wrap(err, "publickey login error")
 			}
-			defer session.Close()
+			defer func() {
+				_ = session.Close()
+			}()
 
 			stdin, err = session.StdinPipe()
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("get stdin channel error\r\n")})
 				return errors.Wrap(err, "get stdin channel error")
 			}
-			defer stdin.Close()
+			defer func() {
+				_ = stdin.Close()
+			}()
 
 			err = ws.transformOutput(session, ws.websocket)
 			if err != nil {
@@ -183,6 +246,8 @@ func (ws *WebSSH) server() error {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("start a login shell error\r\n")})
 				return errors.Wrap(err, "start a login shell error")
 			}
+
+			hasAuth = true
 
 		case messageTypeStdin:
 			if stdin == nil {
@@ -209,7 +274,7 @@ func (ws *WebSSH) server() error {
 	}
 }
 
-// newSSHXtermSession start ssh xterm session
+// 创建 ssh 会话
 func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, msg message) (*ssh.Session, error) {
 	var err error
 	c, chans, reqs, err := ssh.NewClientConn(conn, conn.RemoteAddr().String(), config)
@@ -234,7 +299,7 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 	return session, nil
 }
 
-// transformOutput transform shell stdout to websocket message
+// 发送 ssh 会话的 stdout 和 stdin 数据到 websocket 连接
 func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) error {
 	stdout, err := session.StdoutPipe()
 	if err != nil {
@@ -249,12 +314,10 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 		for {
 			n, err := r.Read(buff)
 			if err != nil {
-				//ws.logger.Printf("%s read fail", t)
 				return
 			}
 			err = conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 			if err != nil {
-				//ws.logger.Printf("%s write fail", t)
 				return
 			}
 		}

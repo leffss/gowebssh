@@ -17,7 +17,7 @@ import (
 ...
 id := r.Header.Get("Sec-WebSocket-Key")
 webssh := gowebssh.NewWebSSH()
-webssh.SetTerm("linux")
+webssh.SetTerm(gowebssh.TermLinux)
 webssh.SetBuffSize(1024)
 webssh.SetId(id)
 webssh.SetConnTimeOut(15 * time.Second)
@@ -42,7 +42,8 @@ webssh.AddWebsocket(ws)
 type messageType string
 
 const (
-	messageTypeAddr     = "addr"
+	messageTypeAddr		 = "addr"
+	messageTypeTerm     = "term"
 	messageTypeLogin     = "login"
 	messageTypePassword  = "password"
 	messageTypePublickey = "publickey"
@@ -65,9 +66,10 @@ type message struct {
 1. 地址 `{type:"addr",data:"$addr"}`  
    地址格式： ip:port，例如 192.168.223.111:22
 2. 登录 `{type:"login",data:"$username"}`
-3. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
-4. 窗口大小调整 `{type:"resize",cols:40,rows:80}`
-5. 标准流数据  
+3. 设置 term 终端类型 `{type:"term",data:"$term"}`    # 可不设置，默认 xterm
+4. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
+5. 窗口大小调整 `{type:"resize",cols:40,rows:80}`
+6. 标准流数据  
    `{type:"stdin",data:"$data"}`
    `{type:"stdout",data:"$data"}`
    `{type:"stderr",data:"$data"}`  
