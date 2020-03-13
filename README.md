@@ -92,3 +92,8 @@ function utoa(rawString) {
 # 实例
 
 具体实例参考 `example` 文件夹
+
+# 预览
+![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/1.PNG?raw=true)
+![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/2.PNG?raw=true)
+![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/3.PNG?raw=true)
