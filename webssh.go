@@ -83,9 +83,17 @@ func (ws *WebSSH) server() error {
 		_ = ws.websocket.Close()
 	}()
 
+	// 默认加密方式 aes128-ctr aes192-ctr aes256-ctr aes128-gcm@openssh.com arcfour256 arcfour128
+	// 连 linux 通常没有问题，但是很多交换机其实默认只提供 aes128-cbc 3des-cbc aes192-cbc aes256-cbc 这些。
+	// 因此我们还是加全一点比较好。
+	sshConfig := ssh.Config{
+		Ciphers: []string{"aes128-ctr", "aes192-ctr", "aes256-ctr", "aes128-gcm@openssh.com", "arcfour256", "arcfour128", "aes128-cbc", "3des-cbc", "aes192-cbc", "aes256-cbc"},
+	}
+
 	config := ssh.ClientConfig{
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         ws.connTimeout,
+		Config: sshConfig,
 	}
 
 	var session *ssh.Session
@@ -109,7 +117,7 @@ func (ws *WebSSH) server() error {
 			}
 			addr, _ := url.QueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) connect addr %s", ws.id, addr)
-			conn, err := net.Dial("tcp", addr)
+			conn, err := net.DialTimeout("tcp", addr, ws.connTimeout)
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("connect error\r\n")})
 				return errors.Wrap(err, "connect addr " + addr + " error")
@@ -211,6 +219,7 @@ func (ws *WebSSH) server() error {
 			ws.logger.Printf("(%s) auth with privatekey ******", ws.id)
 			pemBytes := []byte(pemStrings)
 
+			// 如果 key 有密码使用 ssh.ParsePrivateKeyWithPassphrase(pemBytes, []byte(passphrase))
 			signer, err := ssh.ParsePrivateKey(pemBytes)
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("parse publickey erro\r\n")})
@@ -276,7 +285,16 @@ func (ws *WebSSH) server() error {
 
 // 创建 ssh 会话
 func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, msg message) (*ssh.Session, error) {
-	var err error
+	// 也可以使用这种方法连接
+	//client, err := ssh.Dial("tcp", "192.168.223.111:22", config)
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "open client error")
+	//}
+	//session, err := client.NewSession()
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "open session error")
+	//}
+
 	c, chans, reqs, err := ssh.NewClientConn(conn, conn.RemoteAddr().String(), config)
 	if err != nil {
 		return nil, errors.Wrap(err, "open client error")
@@ -285,17 +303,22 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 	if err != nil {
 		return nil, errors.Wrap(err, "open session error")
 	}
-	modes := ssh.TerminalModes{ssh.ECHO: 1, ssh.TTY_OP_ISPEED: ws.buffSize, ssh.TTY_OP_OSPEED: ws.buffSize}
-	if msg.Cols == 0 {
+	modes := ssh.TerminalModes{
+		ssh.ECHO: 1,
+		ssh.TTY_OP_ISPEED: ws.buffSize,
+		ssh.TTY_OP_OSPEED: ws.buffSize,
+	}
+	if msg.Cols <= 0 || msg.Cols > 500 {
 		msg.Cols = 40
 	}
-	if msg.Rows == 0 {
+	if msg.Rows <= 0 || msg.Rows > 1000 {
 		msg.Rows = 80
 	}
 	err = session.RequestPty(ws.term, msg.Rows, msg.Cols, modes)
 	if err != nil {
 		return nil, errors.Wrap(err, "open pty error")
 	}
+
 	return session, nil
 }
 
