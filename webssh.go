@@ -1,6 +1,8 @@
 package gowebssh
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,6 +13,19 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 )
+
+var (
+	// sz 下载文件
+	ZModemSzStart = fmt.Sprintf("%+q", "rz\r**\x18B00000000000000\r\x8a\x11")
+	ZModemSzEnd = fmt.Sprintf("%+q", "\r**\x18B0800000000022d\r\x8a")
+	// 经过测试发现不一定会出现，就是两个大写的字母 o, 建议不过滤
+	//ZModemSzEnd2 = fmt.Sprintf("%+q", "OO")
+
+	// rz 上传文件
+	ZModemRzStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000023be50\r\x8a\x11")
+	ZModemRzEnd = fmt.Sprintf("%+q", "**\x18B0800000000022d\r\x8a")
+)
+
 
 // WebSSH 管理 Websocket 和 ssh 连接
 type WebSSH struct {
@@ -105,12 +120,30 @@ func (ws *WebSSH) server() error {
 
 	for {
 		var msg message
-		err := ws.websocket.ReadJSON(&msg)
+		//err := ws.websocket.ReadJSON(&msg)
+		//if err != nil {
+		//	return errors.Wrap(err, "websocket close or error message type")
+		//}
+
+		_, data, err := ws.websocket.ReadMessage()
 		if err != nil {
-			return errors.Wrap(err, "websocket close or error message type")
+			return errors.Wrap(err, "websocket close or read message err")
 		}
 
+		// 如果不是标准的信息格式，则是 xterm 输入或者 zmodem 数据流，则直接发送给 ssh 服务端
+		err = json.Unmarshal(data, &msg)
+		if err != nil {
+			_, err = stdin.Write(data)
+			if err != nil {
+				log.Println(err)
+			}
+		}
 		switch msg.Type {
+		case messageTypeIgnore:
+			// 忽略的信息，比如使用 rz 时，记录里面无法看到上传的文件，
+			// 客户端上传完成可以可以发个忽略信息过来让服务端知晓
+			data, _ := url.QueryUnescape(string(msg.Data))
+			fmt.Printf("Ignore message: %s", data)
 		case messageTypeAddr:
 			if hasAddr {
 				continue
@@ -258,6 +291,7 @@ func (ws *WebSSH) server() error {
 
 			hasAuth = true
 
+		// 为了兼容 zmodem， stdin 消息协议暂时无用，客户端数据都以二进制格式发送过来
 		case messageTypeStdin:
 			if stdin == nil {
 				ws.logger.Printf("stdin wait login")
@@ -339,8 +373,13 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 			if err != nil {
 				return
 			}
-			err = conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+			//err = conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+
+			// 为了兼容 zmodem，stdout，stderr 消息协议暂时无用，全部发送二进制数据到客户端
+			err = conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+
 			if err != nil {
+				log.Println(err)
 				return
 			}
 		}

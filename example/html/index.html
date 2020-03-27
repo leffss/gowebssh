@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <title>webssh</title>
     <link rel="icon" href="./favicon.ico"/>
-    <link rel="stylesheet" href="./xterm/xterm.css"/>
-    <link rel="stylesheet" href="./xterm/style.css"/>
-    <link rel="stylesheet" href="./bootstrap.min.css"/>
+    <link href="./bootstrap/3.3.7/bootstrap.min.css" rel="stylesheet">
+    <link href="./xterm/3.14.5/xterm.min.css" rel="stylesheet">
+    <link href="./xterm/3.14.5/addons/fullscreen.min.css" rel="stylesheet">
+
     <style>
         .input-width {
             width: 20%;
@@ -66,7 +67,7 @@
             <label class="col-sm-2 control-label">秘钥文件</label>
             <div class="col-sm-10">
                 <input type="file" id="pkey" onchange="readFile('pkey', 'pkey_res');">
-				<span id="pkey_res" hidden><span>
+				<span id="pkey_res" hidden></span>
             </div>
         </div>
 
@@ -94,8 +95,19 @@
 	<div id="terminal"></div>
 </div>
 
-<script type="text/javascript" src="./jquery.min.js"></script>
-<script type="text/javascript" src="./xterm/xterm.js"></script>
+<script type="text/javascript" src="./jquery/3.4.1/jquery.min.js"></script>
+<script type="text/javascript" src="./zmodem/zmodem.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/xterm.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/attach.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/fit.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/fullscreen.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/search.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/terminado.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/webLinks.min.js"></script>
+<script type="text/javascript" src="./xterm/3.14.5/addons/zmodem.min.js"></script>
+<script type="text/javascript" src="./bootstrap/3.3.7/bootstrap.min.js"></script>
+<script type="text/javascript" src="./bootbox/5.4.0/bootbox.min.js"></script>
+
 <script type="text/javascript" src="./webssh.js"></script>
 
 </body>

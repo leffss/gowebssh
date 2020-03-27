@@ -1,7 +1,7 @@
 # 说明
 使用 `github.com/gorilla/websocket` 与 `golang.org/x/crypto/ssh` 实现的 webssh，支持颜色以及自动补全
 
-参考：https://github.com/myml/webssh 实现，原项目只实现了 password 登陆，本项目新增 publickey 登陆
+参考：https://github.com/myml/webssh 实现，原项目只实现了 password 登陆，本项目新增 publickey 登陆，并新增 zmodem 支持
 
 # 服务器端文档
 
@@ -51,6 +51,7 @@ const (
 	messageTypeStdout    = "stdout"
 	messageTypeStderr    = "stderr"
 	messageTypeResize    = "resize"
+    messageTypeIgnore    = "ignore"
 )
 
 type message struct {
@@ -69,11 +70,14 @@ type message struct {
 3. 设置 term 终端类型 `{type:"term",data:"$term"}`    # 可不设置，默认 xterm
 4. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
 5. 窗口大小调整 `{type:"resize",cols:40,rows:80}`
-6. 标准流数据  
+6. 忽略数据流 `{type:"ignore",data:"$data"}`     # 客户端发送到服务端，服务器忽略，主要用于 zmodem 
+7. ~~标准流数据  
    `{type:"stdin",data:"$data"}`
    `{type:"stdout",data:"$data"}`
    `{type:"stderr",data:"$data"}`  
-   客户端发送 stdin, 接收 stdout, stderr
+   客户端发送 stdin, 接收 stdout, stderr~~
+- 为了兼容 zmodem ，暂时不支持 stdin，stdout，stderr 消息协议
+
 
 ## Data 数据
 
@@ -97,3 +101,6 @@ function utoa(rawString) {
 ![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/1.PNG?raw=true)
 ![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/2.PNG?raw=true)
 ![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/3.PNG?raw=true)
+![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/4.PNG?raw=true)
+![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/5.PNG?raw=true)
+![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/6.PNG?raw=true)
