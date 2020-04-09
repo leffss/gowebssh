@@ -153,9 +153,9 @@ function ws_connect() {
 				Zmodem.Browser.send_files(zsession, files_obj, {
 						on_offer_response(obj, xfer) {
 							if (xfer) {
-								term.write("\r\n");
+								// term.write("\r\n");
 							} else {
-								term.write("\r\n" + obj.name + " was upload skipped");
+								term.write(obj.name + " was upload skipped\r\n");
 								socket.send(JSON.stringify({ type: "ignore", data: utoa("\r\n" + obj.name + " was upload skipped\r\n") }));
 							}
 						},
@@ -163,6 +163,7 @@ function ws_connect() {
 							updateProgress(xfer);
 						},
 						on_file_complete(obj) {
+							term.write("\r\n");
 							socket.send(JSON.stringify({ type: "ignore", data: utoa("\r\n" + obj.name + " was upload success\r\n") }));
 							// console.log("COMPLETE", obj);
 						},
@@ -170,7 +171,6 @@ function ws_connect() {
 				).then(zsession.close.bind(zsession), console.error.bind(console)
 				).then(() => {
 					res();
-					term.write("\r\n");
 				});
 			};
 		});
