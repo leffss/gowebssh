@@ -18,7 +18,7 @@ import (
 id := r.Header.Get("Sec-WebSocket-Key")
 webssh := gowebssh.NewWebSSH()
 webssh.SetTerm(gowebssh.TermLinux)
-webssh.SetBuffSize(1024)
+webssh.SetBuffSize(8192)
 webssh.SetId(id)
 webssh.SetConnTimeOut(15 * time.Second)
 ...
@@ -27,8 +27,8 @@ upGrader := websocket.Upgrader{
         return true
     },
     Subprotocols: []string{r.Header.Get("Sec-WebSocket-Protocol")},
-    ReadBufferSize: 1024,
-    WriteBufferSize: 1024,
+    ReadBufferSize: 8192,
+    WriteBufferSize: 8192,
 }
 ws, _ := upGrader.Upgrade(w, r, nil)
 webssh.AddWebsocket(ws)
@@ -70,13 +70,12 @@ type message struct {
 3. 设置 term 终端类型 `{type:"term",data:"$term"}`    # 可不设置，默认 xterm
 4. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
 5. 窗口大小调整 `{type:"resize",cols:40,rows:80}`
-6. 忽略数据流 `{type:"ignore",data:"$data"}`     # 客户端发送到服务端，服务器忽略，主要用于 zmodem 
-7. ~~标准流数据  
+6. 忽略数据流 `{type:"ignore",data:"$data"}`     # 客户端发送到服务端，服务器忽略，主要用于 zmodem 文件传输记录
+7. 标准流数据  
    `{type:"stdin",data:"$data"}`
    `{type:"stdout",data:"$data"}`
    `{type:"stderr",data:"$data"}`  
-   客户端发送 stdin, 接收 stdout, stderr~~
-- 为了兼容 zmodem ，暂时不支持 stdin，stdout，stderr 消息协议
+   客户端发送 stdin, 接收 stdout, stderr
 
 
 ## Data 数据

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -18,14 +19,22 @@ var (
 	// sz 下载文件
 	ZModemSzStart = fmt.Sprintf("%+q", "rz\r**\x18B00000000000000\r\x8a\x11")
 	ZModemSzEnd = fmt.Sprintf("%+q", "\r**\x18B0800000000022d\r\x8a")
-	// 经过测试发现不一定会出现，就是两个大写的字母 o, 建议不过滤
+	// 经过测试发现不一定会出现，就是两个大写的字母 OO
 	//ZModemSzEnd2 = fmt.Sprintf("%+q", "OO")
+	ZModemSzEndOO = []byte{79, 79}
 
 	// rz 上传文件
 	ZModemRzStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000023be50\r\x8a\x11")
+	ZModemRzEStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000063f694\r\x8a\x11")	// rz -e
+	ZModemRzSStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000223d832\r\x8a\x11")	// rz -S
+	ZModemRzQStart = fmt.Sprintf("%+q", "**\x18B0100000023be50\r\x8a\x11")	// rz -q
+	ZModemRzQEStart = fmt.Sprintf("%+q", "**\x18B0100000063f694\r\x8a\x11")	// rz -q -e
+	ZModemRzQSStart = fmt.Sprintf("%+q", "**\x18B0100000223d832\r\x8a\x11")	// rz -q -S
 	ZModemRzEnd = fmt.Sprintf("%+q", "**\x18B0800000000022d\r\x8a")
-)
 
+	// zmodem 取消 \x18\x18\x18\x18\x18\x08\x08\x08\x08\x08，使用 %+q 的形式无法正确使用 strings.Index 处理
+	ZModemCancel = string([]byte{24, 24, 24, 24, 24, 8, 8, 8, 8, 8})
+)
 
 // WebSSH 管理 Websocket 和 ssh 连接
 type WebSSH struct {
@@ -36,6 +45,7 @@ type WebSSH struct {
 	websocket *websocket.Conn
 	connTimeout time.Duration
 	logger   *log.Logger
+	ZModemOO, ZModem bool
 }
 
 // WebSSH 构造函数
@@ -133,6 +143,9 @@ func (ws *WebSSH) server() error {
 		// 如果不是标准的信息格式，则是 xterm 输入或者 zmodem 数据流，则直接发送给 ssh 服务端
 		err = json.Unmarshal(data, &msg)
 		if err != nil {
+
+			// fmt.Printf("ssh client input: %+q\n", string(data))
+
 			_, err = stdin.Write(data)
 			if err != nil {
 				log.Println(err)
@@ -297,7 +310,8 @@ func (ws *WebSSH) server() error {
 				ws.logger.Printf("stdin wait login")
 				continue
 			}
-			_, err = stdin.Write(msg.Data)
+			data, _ := url.QueryUnescape(string(msg.Data))
+			_, err = stdin.Write([]byte(data))
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("write to stdin error\r\n")})
 				return errors.Wrap(err, "write to stdin error")
@@ -339,8 +353,8 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 	}
 	modes := ssh.TerminalModes{
 		ssh.ECHO: 1,
-		ssh.TTY_OP_ISPEED: ws.buffSize,
-		ssh.TTY_OP_OSPEED: ws.buffSize,
+		ssh.TTY_OP_ISPEED: 8192,
+		ssh.TTY_OP_OSPEED: 8192,
 	}
 	if msg.Cols <= 0 || msg.Cols > 500 {
 		msg.Cols = 40
@@ -366,6 +380,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 	if err != nil {
 		return errors.Wrap(err, "get stderr channel error")
 	}
+
 	copyToMessage := func(t messageType, r io.Reader) {
 		buff := make([]byte, ws.buffSize)
 		for {
@@ -373,14 +388,49 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 			if err != nil {
 				return
 			}
-			//err = conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+			res := fmt.Sprintf("%+q", string(buff[:n]))
 
-			// 为了兼容 zmodem，stdout，stderr 消息协议暂时无用，全部发送二进制数据到客户端
-			err = conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+			//fmt.Println(t, res)
 
-			if err != nil {
-				log.Println(err)
-				return
+			if ws.ZModemOO {
+				// sz 结束后服务器端会发送两个 O(79) 到客户端
+				ws.ZModemOO = false
+				if n < 2 {
+					conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+				} else if n == 2 {
+					if buff[0] == ZModemSzEndOO[0] && buff[1] == ZModemSzEndOO[1] {
+						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+					} else {
+						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+					}
+				} else {
+					if buff[0] == ZModemSzEndOO[0] && buff[1] == ZModemSzEndOO[1] {
+						conn.WriteMessage(websocket.BinaryMessage, buff[:2])
+						conn.WriteJSON(&message{Type: t, Data: buff[2:]})
+					} else {
+						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+					}
+				}
+			} else {
+				if ws.ZModem {
+					if res == ZModemSzEnd || res == ZModemRzEnd {
+						ws.ZModem = false
+						if res == ZModemSzEnd {
+							ws.ZModemOO = true
+						}
+					}
+					if index := strings.Index(string(buff[:n]), ZModemCancel); index != -1 {
+						ws.ZModem = false
+					}
+					conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+				} else {
+					if res == ZModemSzStart || res == ZModemRzStart || res == ZModemRzEStart || res == ZModemRzSStart || res == ZModemRzQStart || res == ZModemRzQEStart || res == ZModemRzQSStart {
+						ws.ZModem = true
+						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+					} else {
+						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
+					}
+				}
 			}
 		}
 	}

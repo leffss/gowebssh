@@ -77,22 +77,25 @@ function get_connect_info() {
 function ws_connect() {
     let connect_info = get_connect_info();
 
-	Terminal.applyAddon(attach);
-	Terminal.applyAddon(fit);
-	Terminal.applyAddon(fullscreen);
-	Terminal.applyAddon(search);
-	Terminal.applyAddon(terminado);
-	Terminal.applyAddon(webLinks);
-	Terminal.applyAddon(zmodem);
+	// Terminal.applyAddon(attach);
+	// Terminal.applyAddon(fit);
+	// Terminal.applyAddon(fullscreen);
+	// Terminal.applyAddon(search);
+	// Terminal.applyAddon(terminado);
+	// Terminal.applyAddon(webLinks);
+	// Terminal.applyAddon(zmodem);
 
     let term = new Terminal({
+		rendererType: 'canvas',
 		cols: connect_info.cols,
 		rows: connect_info.rows,
 		useStyle: true,
 		cursorBlink: true
 	});
 
-    let socket = new WebSocket(connect_info.protocol + connect_info.hostname + connect_info.ws_port + '/api/ssh');
+    let socket = new WebSocket(connect_info.protocol + connect_info.hostname + connect_info.ws_port + '/api/ssh', ['webssh']);
+    // let socket = new WebSocket('ws://127.0.0.1:80/ws/webssh', ['webssh']);
+	socket.binaryType = "arraybuffer";
 
 	function uploadFile(zsession) {
         let uploadHtml = "<div>" +
@@ -100,7 +103,7 @@ function ws_connect() {
             "<input id='fupload' name='fupload' type='file' style='display:none;' multiple='true'>" +
             "<i class='fa fa-cloud-upload fa-3x'></i>" +
             "<br />" +
-            "点击选择文件" +
+            "点击选择文件, 请尽量使用 rz -O 方式上传" +
             "</label>" +
             "<br />" +
             "<span style='margin-left:5px !important;' id='fileList'></span>" +
@@ -184,14 +187,15 @@ function ws_connect() {
 		let detail = xfer.get_details();
 		let name = detail.name;
 		let total = detail.size;
+		let offset = xfer.get_offset();
 		let percent;
 		if (total === 0) {
 			percent = 100
 		} else {
-			percent = Math.round(xfer._file_offset / total * 100);
+			percent = Math.round(offset / total * 100);
 		}
 
-		term.write("\r" + name + ": " + total + " " + xfer._file_offset + " " + percent + "%    ");
+		term.write("\r" + name + ": " + total + " " + offset + " " + percent + "%    ");
 	}
 
 	function downloadFile(zsession) {
@@ -231,39 +235,26 @@ function ws_connect() {
 	$('#webssh-terminal').removeClass('hide');
 	term.open(document.getElementById('terminal'));
 	term.focus();
-	term.toggleFullScreen(true);
 	$("body").attr("onbeforeunload",'checkwindow()'); //增加刷新关闭提示属性
-	
-	// 处理 zmodem
-	term.on("zmodemDetect", (detection) => {
-		try {
-			term.detach();
-		} catch (e) {
-			// console.log(e);
-		}
-		let zsession = detection.confirm();
-		let promise;
-		if (zsession.type === "receive") {
-			promise = downloadFile(zsession);
-		} else {
-			promise = uploadFile(zsession);
-		}
 
-		promise.catch( console.error.bind(console) ).then( () => {
-			try {
-				term.detach();
-			} catch (e) {
-				// console.log(e);
+	var zsentry = new Zmodem.Sentry( {
+		to_terminal: function(octets) {},  //i.e. send to the terminal
+		on_detect: function(detection) {
+			let zsession = detection.confirm();
+			let promise;
+			if (zsession.type === "receive") {
+				promise = downloadFile(zsession);
+			} else {
+				promise = uploadFile(zsession);
 			}
-
-			try {
-				term.attach(socket);
-			} catch (e) {
-				// console.log(e);
-			}
-		});
+			promise.catch( console.error.bind(console) ).then( () => {
+				//
+			});
+		},
+		on_retract: function() {},
+		sender: function(octets) { socket.send(new Uint8Array(octets)) },
 	});
-	
+
 	socket.onopen = function () {
 		socket.send(JSON.stringify({ type: "addr", data: utoa(connect_info.host + ":" + connect_info.port) }));
 
@@ -278,55 +269,56 @@ function ws_connect() {
 		}
 
 		socket.send(JSON.stringify({ type: "resize", cols: connect_info.cols, rows: connect_info.rows }));
+		term.resize(connect_info.cols, connect_info.rows);
 		
 		// 发送数据
-        //term.on('data', function (data) {
-		//	socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
-        //});
-
-		// 接收数据
-        //socket.onmessage = function (recv) {
-		//	try {
-		//		var msg = JSON.parse(recv.data);
-		//		switch (msg.type) {
-		//			case "stdout":
-		//			case "stderr":
-		//				term.write(atou(msg.data));
-		//		}
-		//	} catch (error) {
-		//		console.log('接收的数据格式错误');
-		//		console.log(recv.data);
-		//	}
-        //};
-
-		//连接 term 和 socket
-		//这种方式下 xterm.js 会把输入数据原样发送到后端，也会直接显示后端传来的数据
-		term.attach(socket);
-		term._initialized = true;
-		term.zmodemAttach(socket, {
-			noTerminalWriteOutsideSession: true,
-		});
-		
-		// 连接错误
-        socket.onerror = function (e) {
-			term.write('connect error');
-            console.log(e);
-        };
-		
-		// 关闭连接
-        socket.onclose = function (e) {
-            console.log(e);
-			term.write('disconnect');
-			
-			term.detach();
-            //term.destroy();
-        };
+		// v3 xterm.js
+        // term.on('data', function (data) {
+		// 	socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
+        // });
+        // v4 xterm.js
+        term.onData(function (data) {
+            socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
+        });
     };
-	
-	// 监听浏览器窗口, 根据浏览器窗口大小修改终端大小
+
+	// 接收数据
+	socket.onmessage = function (recv) {
+		try {
+			var msg = JSON.parse(recv.data);
+			switch (msg.type) {
+				case "stdout":
+				case "stderr":
+					term.write(atou(msg.data));
+			}
+		} catch (error) {
+			zsentry.consume(recv.data);
+		}
+	};
+
+	// 连接错误
+	socket.onerror = function (e) {
+		term.write('connect error');
+		console.log(e);
+	};
+
+	// 关闭连接
+	socket.onclose = function (e) {
+		console.log(e);
+		term.write('disconnect');
+
+		// term.detach();
+		// term.destroy();
+	};
+
+	// 监听浏览器窗口, 根据浏览器窗口大小修改终端大小, 延迟改变
+	var timer = 0;
 	$(window).resize(function () {
-		let cols_rows = get_term_size();
-		socket.send(JSON.stringify({ type: "resize", cols: cols_rows.cols, rows: cols_rows.rows }));
-		term.resize(cols_rows.cols, cols_rows.rows);
+		clearTimeout(timer);
+		timer = setTimeout(function() {
+			let cols_rows = get_term_size();
+			socket.send(JSON.stringify({ type: "resize", cols: cols_rows.cols, rows: cols_rows.rows }));
+			term.resize(cols_rows.cols, cols_rows.rows);
+		}, 100)
 	});
 }

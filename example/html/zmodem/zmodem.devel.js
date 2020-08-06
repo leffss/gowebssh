@@ -1906,10 +1906,6 @@ Zmodem.Session.Receive = class ZmodemReceiveSession extends Zmodem.Session {
 
     _consume_first() {
         if (this._got_ZFIN) {
-
-            console.log(this._got_ZFIN);
-            console.log(this._input_buffer);
-
             if (this._input_buffer.length < 2) return;
 
             //if it’s OO, then set this._bytes_after_OO

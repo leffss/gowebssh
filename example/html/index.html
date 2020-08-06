@@ -5,8 +5,8 @@
     <title>webssh</title>
     <link rel="icon" href="./favicon.ico"/>
     <link href="./bootstrap/3.3.7/bootstrap.min.css" rel="stylesheet">
-    <link href="./xterm/3.14.5/xterm.min.css" rel="stylesheet">
-    <link href="./xterm/3.14.5/addons/fullscreen.min.css" rel="stylesheet">
+    <!--link href="./xterm/3.14.5/xterm.min.css" rel="stylesheet"-->
+    <link href="./xterm/4.4.0/xterm.min.css" rel="stylesheet">
 
     <style>
         .input-width {
@@ -26,7 +26,7 @@
         <div class="form-group">
             <label class="col-sm-2 control-label">主机地址</label>
             <div class="col-sm-10">
-                <input type="text" class="input-width form-control" id="host" placeholder="host" value="192.168.223.111">
+                <input type="text" class="input-width form-control" id="host" placeholder="host" value="192.168.223.101">
             </div>
         </div>
 
@@ -76,8 +76,7 @@
             <div class="col-sm-10">
                 <span id="helpBlock" class="help-block">
                    注意:
-                    <p style="color: red">1、当认证类型为密码认证时, 秘钥输入框的内容将被忽略</p>
-                    <p style="color: red">2、当认证类型为秘钥认证时, 密码输入框的内容将被忽略</p>
+                    <p style="color: red">当认证类型为秘钥认证时, 密码输入框的内容将被忽略</p>
                 </span>
             </div>
         </div>
@@ -96,16 +95,9 @@
 </div>
 
 <script type="text/javascript" src="./jquery/3.4.1/jquery.min.js"></script>
-<!--script type="text/javascript" src="./zmodem/zmodem.min.js"></script-->
 <script type="text/javascript" src="./zmodem/zmodem.devel.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/xterm.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/attach.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/fit.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/fullscreen.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/search.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/terminado.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/webLinks.min.js"></script>
-<script type="text/javascript" src="./xterm/3.14.5/addons/zmodem.min.js"></script>
+<!--script type="text/javascript" src="./xterm/3.14.5/xterm.min.js"></script-->
+<script type="text/javascript" src="./xterm/4.4.0/xterm.min.js"></script>
 <script type="text/javascript" src="./bootstrap/3.3.7/bootstrap.min.js"></script>
 <script type="text/javascript" src="./bootbox/5.4.0/bootbox.min.js"></script>
 
