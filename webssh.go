@@ -1,40 +1,60 @@
 package gowebssh
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"log"
 	"net"
 	"net/url"
-	"strings"
 	"time"
-
-	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
-	"golang.org/x/crypto/ssh"
 )
 
 var (
-	// sz 下载文件
-	ZModemSzStart = fmt.Sprintf("%+q", "rz\r**\x18B00000000000000\r\x8a\x11")
-	ZModemSzEnd = fmt.Sprintf("%+q", "\r**\x18B0800000000022d\r\x8a")
-	// 经过测试发现不一定会出现，就是两个大写的字母 OO
-	//ZModemSzEnd2 = fmt.Sprintf("%+q", "OO")
-	ZModemSzEndOO = []byte{79, 79}
+	// sz fmt.Sprintf("%+q", "rz\r**\x18B00000000000000\r\x8a\x11")
+	//ZModemSZStart = []byte{13, 42, 42, 24, 66, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 13, 138, 17}
+	ZModemSZStart = []byte{42, 42, 24, 66, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 13, 138, 17}
+	// sz 结束 fmt.Sprintf("%+q", "\r**\x18B0800000000022d\r\x8a")
+	//ZModemSZEnd = []byte{13, 42, 42, 24, 66, 48, 56, 48, 48, 48, 48, 48, 48, 48, 48, 48, 50, 50, 100, 13, 138}
+	ZModemSZEnd = []byte{42, 42, 24, 66, 48, 56, 48, 48, 48, 48, 48, 48, 48, 48, 48, 50, 50, 100, 13, 138}
+	// sz 结束后可能还会发送两个 OO，但是经过测试发现不一定每次都会发送 fmt.Sprintf("%+q", "OO")
+	ZModemSZEndOO = []byte{79, 79}
 
-	// rz 上传文件
-	ZModemRzStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000023be50\r\x8a\x11")
-	ZModemRzEStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000063f694\r\x8a\x11")	// rz -e
-	ZModemRzSStart = fmt.Sprintf("%+q", "rz waiting to receive.**\x18B0100000223d832\r\x8a\x11")	// rz -S
-	ZModemRzQStart = fmt.Sprintf("%+q", "**\x18B0100000023be50\r\x8a\x11")	// rz -q
-	ZModemRzQEStart = fmt.Sprintf("%+q", "**\x18B0100000063f694\r\x8a\x11")	// rz -q -e
-	ZModemRzQSStart = fmt.Sprintf("%+q", "**\x18B0100000223d832\r\x8a\x11")	// rz -q -S
-	ZModemRzEnd = fmt.Sprintf("%+q", "**\x18B0800000000022d\r\x8a")
+	// rz fmt.Sprintf("%+q", "**\x18B0100000023be50\r\x8a\x11")
+	ZModemRZStart = []byte{42, 42, 24, 66, 48, 49, 48, 48, 48, 48, 48, 48, 50, 51, 98, 101, 53, 48, 13, 138, 17}
+	// rz -e fmt.Sprintf("%+q", "**\x18B0100000063f694\r\x8a\x11")
+	ZModemRZEStart = []byte{42, 42, 24, 66, 48, 49, 48, 48, 48, 48, 48, 48, 54, 51, 102, 54, 57, 52, 13, 138, 17}
+	// rz -S fmt.Sprintf("%+q", "**\x18B0100000223d832\r\x8a\x11")
+	ZModemRZSStart = []byte{42, 42, 24, 66, 48, 49, 48, 48, 48, 48, 48, 50, 50, 51, 100, 56, 51, 50, 13, 138, 17}
+	// rz -e -S fmt.Sprintf("%+q", "**\x18B010000026390f6\r\x8a\x11")
+	ZModemRZESStart = []byte{42, 42, 24, 66, 48, 49, 48, 48, 48, 48, 48, 50, 54, 51, 57, 48, 102, 54, 13, 138, 17}
+	// rz 结束 fmt.Sprintf("%+q", "**\x18B0800000000022d\r\x8a")
+	ZModemRZEnd = []byte{42, 42, 24, 66, 48, 56, 48, 48, 48, 48, 48, 48, 48, 48, 48, 50, 50, 100, 13, 138}
 
-	// zmodem 取消 \x18\x18\x18\x18\x18\x08\x08\x08\x08\x08，使用 %+q 的形式无法正确使用 strings.Index 处理
-	ZModemCancel = string([]byte{24, 24, 24, 24, 24, 8, 8, 8, 8, 8})
+	// **\x18B0
+	ZModemRZCtrlStart = []byte{42, 42, 24, 66, 48}
+	// \r\x8a\x11
+	ZModemRZCtrlEnd1 = []byte{13, 138, 17}
+	// \r\x8a
+	ZModemRZCtrlEnd2 = []byte{13, 138}
+
+	// zmodem 取消 \x18\x18\x18\x18\x18\x08\x08\x08\x08\x08
+	ZModemCancel = []byte{24, 24, 24, 24, 24, 8, 8, 8, 8, 8}
 )
+
+func ByteContains(x, y []byte) (n []byte, contain bool)  {
+	index := bytes.Index(x, y)
+	if index == -1 {
+		return
+	}
+	lastIndex := index + len(y)
+	n = append(x[:index], x[lastIndex:]...)
+	return n, true
+}
 
 // WebSSH 管理 Websocket 和 ssh 连接
 type WebSSH struct {
@@ -44,8 +64,8 @@ type WebSSH struct {
 	sshConn net.Conn
 	websocket *websocket.Conn
 	connTimeout time.Duration
-	logger   *log.Logger
-	ZModemOO, ZModem bool
+	logger *log.Logger
+	ZModemSZ, ZModemRZ, ZModemSZOO bool
 }
 
 // WebSSH 构造函数
@@ -388,45 +408,122 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 			if err != nil {
 				return
 			}
-			res := fmt.Sprintf("%+q", string(buff[:n]))
 
+			//res := fmt.Sprintf("%+q", string(buff[:n]))
+			//fmt.Println(buff[:n])
 			//fmt.Println(t, res)
 
-			if ws.ZModemOO {
-				// sz 结束后服务器端会发送两个 O(79) 到客户端
-				ws.ZModemOO = false
+			if ws.ZModemSZOO {
+				fmt.Println("ZModemSZOO")
+				ws.ZModemSZOO = false
 				if n < 2 {
 					conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 				} else if n == 2 {
-					if buff[0] == ZModemSzEndOO[0] && buff[1] == ZModemSzEndOO[1] {
+					if buff[0] == ZModemSZEndOO[0] && buff[1] == ZModemSZEndOO[1] {
 						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
 					} else {
 						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 					}
 				} else {
-					if buff[0] == ZModemSzEndOO[0] && buff[1] == ZModemSzEndOO[1] {
+					if buff[0] == ZModemSZEndOO[0] && buff[1] == ZModemSZEndOO[1] {
 						conn.WriteMessage(websocket.BinaryMessage, buff[:2])
-						conn.WriteJSON(&message{Type: t, Data: buff[2:]})
+						conn.WriteJSON(&message{Type: t, Data: buff[2:n]})
 					} else {
 						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 					}
 				}
 			} else {
-				if ws.ZModem {
-					if res == ZModemSzEnd || res == ZModemRzEnd {
-						ws.ZModem = false
-						if res == ZModemSzEnd {
-							ws.ZModemOO = true
+				if ws.ZModemSZ {
+					fmt.Println("ZModemSZ")
+					if x, ok := ByteContains(buff[:n], ZModemSZEnd); ok {
+						ws.ZModemSZ = false
+						ws.ZModemSZOO = true
+						conn.WriteMessage(websocket.BinaryMessage, ZModemSZEnd)
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+					} else if _, ok := ByteContains(buff[:n], ZModemCancel); ok {
+						ws.ZModemSZ = false
+						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+					} else {
+						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+					}
+				} else if ws.ZModemRZ {
+					fmt.Println("ZModemRZ")
+					if x, ok := ByteContains(buff[:n], ZModemRZEnd); ok {
+						ws.ZModemRZ = false
+						conn.WriteMessage(websocket.BinaryMessage, ZModemRZEnd)
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+					} else if _, ok := ByteContains(buff[:n], ZModemCancel); ok {
+						ws.ZModemRZ = false
+						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+					} else {
+						// rz 上传过程中服务器端还是会给客户端发送一些信息，比如心跳
+						//conn.WriteJSON(&message{Type: messageTypeConsole, Data: buff[:n]})
+						//conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+
+						startIndex := bytes.Index(buff[:n], ZModemRZCtrlStart)
+						if startIndex != -1 {
+							endIndex := bytes.Index(buff[:n], ZModemRZCtrlEnd1)
+							if endIndex != -1 {
+								ctrl := append(ZModemRZCtrlStart, buff[startIndex + len(ZModemRZCtrlStart):endIndex]...)
+								ctrl = append(ctrl, ZModemRZCtrlEnd1...)
+								conn.WriteMessage(websocket.BinaryMessage, ctrl)
+								info := append(buff[:startIndex], buff[endIndex + len(ZModemRZCtrlEnd1):n]...)
+								if len(info) != 0 {
+									conn.WriteJSON(&message{Type: messageTypeConsole, Data: info})
+								}
+							} else {
+								endIndex = bytes.Index(buff[:n], ZModemRZCtrlEnd2)
+								if endIndex != -1 {
+									ctrl := append(ZModemRZCtrlStart, buff[startIndex + len(ZModemRZCtrlStart):endIndex]...)
+									ctrl = append(ctrl, ZModemRZCtrlEnd2...)
+									conn.WriteMessage(websocket.BinaryMessage, ctrl)
+									info := append(buff[:startIndex], buff[endIndex + len(ZModemRZCtrlEnd2):n]...)
+									if len(info) != 0 {
+										conn.WriteJSON(&message{Type: messageTypeConsole, Data: info})
+									}
+								} else {
+									conn.WriteJSON(&message{Type: messageTypeConsole, Data: buff[:n]})
+								}
+							}
+						} else {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: buff[:n]})
 						}
 					}
-					if index := strings.Index(string(buff[:n]), ZModemCancel); index != -1 {
-						ws.ZModem = false
-					}
-					conn.WriteMessage(websocket.BinaryMessage, buff[:n])
 				} else {
-					if res == ZModemSzStart || res == ZModemRzStart || res == ZModemRzEStart || res == ZModemRzSStart || res == ZModemRzQStart || res == ZModemRzQEStart || res == ZModemRzQSStart {
-						ws.ZModem = true
-						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+					if x, ok := ByteContains(buff[:n], ZModemSZStart); ok {
+						ws.ZModemSZ = true
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+						conn.WriteMessage(websocket.BinaryMessage, ZModemSZStart)
+					} else if x, ok := ByteContains(buff[:n], ZModemRZStart); ok {
+						ws.ZModemRZ = true
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+						conn.WriteMessage(websocket.BinaryMessage, ZModemRZStart)
+					} else if x, ok := ByteContains(buff[:n], ZModemRZEStart); ok {
+						ws.ZModemRZ = true
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+						conn.WriteMessage(websocket.BinaryMessage, ZModemRZEStart)
+					} else if x, ok := ByteContains(buff[:n], ZModemRZSStart); ok {
+						ws.ZModemRZ = true
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+						conn.WriteMessage(websocket.BinaryMessage, ZModemRZSStart)
+					} else if x, ok := ByteContains(buff[:n], ZModemRZESStart); ok {
+						ws.ZModemRZ = true
+						if len(x) != 0 {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						}
+						conn.WriteMessage(websocket.BinaryMessage, ZModemRZESStart)
 					} else {
 						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 					}

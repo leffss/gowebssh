@@ -863,56 +863,69 @@ Zmodem.Browser = {
                 }
 
                 return new Promise( function(res) {
-                    var reader = new FileReader();
+                    function worker() {
+                        var reader = new FileReader();
 
-                    //This really shouldn’t happen … so let’s
-                    //blow up if it does.
-                    reader.onerror = function reader_onerror(e) {
-                        console.error("file read error", e);
-                        throw("File read error: " + e);
-                    };
+                        //This really shouldn’t happen … so let’s
+                        //blow up if it does.
+                        reader.onerror = function reader_onerror(e) {
+                            console.error("file read error", e);
+                            throw("File read error: " + e);
+                        };
 
-                    var piece;
-                    reader.onprogress = function reader_onprogress(e) {
+                        var piece;
+                        reader.onprogress = function reader_onprogress(e) {
 
-                        //Some browsers (e.g., Chrome) give partial returns,
-                        //while others (e.g., Firefox) don’t.
-                        if (e.target.result) {
-                            piece = new Uint8Array(e.target.result, xfer.get_offset())
+                            //Some browsers (e.g., Chrome) give partial returns,
+                            //while others (e.g., Firefox) don’t.
+                            if (e.target.result) {
+                                piece = new Uint8Array(e.target.result, xfer.get_offset())
+
+                                _check_aborted(session);
+
+                                xfer.send(piece);
+
+                                if (options.on_progress) {
+                                    options.on_progress(cur_b.obj, xfer, piece);
+                                }
+                            }
+                        };
+
+                        reader.onload = function reader_onload(e) {
+                            piece = new Uint8Array(e.target.result, xfer, piece)
 
                             _check_aborted(session);
 
-                            xfer.send(piece);
+                            xfer.end(piece).then( function() {
+                                if (options.on_progress && piece.length) {
+                                    options.on_progress(cur_b.obj, xfer, piece);
+                                }
 
-                            if (options.on_progress) {
-                                options.on_progress(cur_b.obj, xfer, piece);
-                            }
+                                if (options.on_file_complete) {
+                                    options.on_file_complete(cur_b.obj, xfer);
+                                }
+
+                                //Resolve the current file-send promise with
+                                //another promise. That promise resolves immediately
+                                //if we’re done, or with another file-send promise
+                                //if there’s more to send.
+                                //res( promise_callback() );
+postMessage( promise_callback() );
+                            } );
+                        };
+
+                        function onmessage(cur_b) {
+                            reader.readAsArrayBuffer(cur_b.obj);
                         }
-                    };
+                    }
 
-                    reader.onload = function reader_onload(e) {
-                        piece = new Uint8Array(e.target.result, xfer, piece)
+var code = worker.toString();
+code = code.substring(code.indexOf("{")+1, code.lastIndexOf("}"));
 
-                        _check_aborted(session);
-
-                        xfer.end(piece).then( function() {
-                            if (options.on_progress && piece.length) {
-                                options.on_progress(cur_b.obj, xfer, piece);
-                            }
-
-                            if (options.on_file_complete) {
-                                options.on_file_complete(cur_b.obj, xfer);
-                            }
-
-                            //Resolve the current file-send promise with
-                            //another promise. That promise resolves immediately
-                            //if we’re done, or with another file-send promise
-                            //if there’s more to send.
-                            res( promise_callback() );
-                        } );
-                    };
-
-                    reader.readAsArrayBuffer(cur_b.obj);
+var blob = new Blob([code], {type: "application/javascript"});
+var worker = new Worker(URL.createObjectURL(blob));
+worker.onmessage = function(msg) { res(msg) }
+worker.postMessage(cur_b);
                 } );
             } );
         }

@@ -13,6 +13,7 @@ const (
 	messageTypeStderr    = "stderr"
 	messageTypeResize    = "resize"
 	messageTypeIgnore    = "ignore"
+	messageTypeConsole   = "console"
 )
 
 type message struct {

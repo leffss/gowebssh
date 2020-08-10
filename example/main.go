@@ -10,7 +10,7 @@ import (
 	"github.com/leffss/gowebssh"
 )
 
-func main() {
+func run() {
 	http.Handle("/", http.FileServer(http.Dir("./html")))
 	http.HandleFunc("/api/ssh", func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("Sec-WebSocket-Key")
@@ -45,4 +45,8 @@ func main() {
 
 	log.Println("start webssh server")
 	_ = http.ListenAndServe(":8000", nil)
+}
+
+func main()  {
+	run()
 }

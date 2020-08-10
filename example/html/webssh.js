@@ -290,8 +290,14 @@ function ws_connect() {
 				case "stdout":
 				case "stderr":
 					term.write(atou(msg.data));
+					break;
+				case "console":
+					console.log(atou(msg.data));
+					break;
 			}
 		} catch (error) {
+			// console.log(error);
+			// console.log("处理zmodem", recv.data);
 			zsentry.consume(recv.data);
 		}
 	};
