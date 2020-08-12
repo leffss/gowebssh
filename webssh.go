@@ -414,7 +414,6 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 			//fmt.Println(t, res)
 
 			if ws.ZModemSZOO {
-				fmt.Println("ZModemSZOO")
 				ws.ZModemSZOO = false
 				if n < 2 {
 					conn.WriteJSON(&message{Type: t, Data: buff[:n]})
@@ -434,7 +433,6 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 				}
 			} else {
 				if ws.ZModemSZ {
-					fmt.Println("ZModemSZ")
 					if x, ok := ByteContains(buff[:n], ZModemSZEnd); ok {
 						ws.ZModemSZ = false
 						ws.ZModemSZOO = true
@@ -449,7 +447,6 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
 					}
 				} else if ws.ZModemRZ {
-					fmt.Println("ZModemRZ")
 					if x, ok := ByteContains(buff[:n], ZModemRZEnd); ok {
 						ws.ZModemRZ = false
 						conn.WriteMessage(websocket.BinaryMessage, ZModemRZEnd)
