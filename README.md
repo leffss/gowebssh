@@ -1,7 +1,8 @@
 # 说明
 使用 `github.com/gorilla/websocket` 与 `golang.org/x/crypto/ssh` 实现的 webssh，支持颜色以及自动补全
 
-参考：https://github.com/myml/webssh 实现，原项目只实现了 password 登陆，本项目新增 publickey 登陆，并新增 zmodem 支持
+参考：https://github.com/myml/webssh 实现，原项目只实现了 password 登陆，本项目新增 publickey 登陆，
+并新增 zmodem 支持（支持禁用 sz 或者 rz 功能）。
 
 # 服务器端文档
 
@@ -21,12 +22,15 @@ webssh.SetTerm(gowebssh.TermLinux)
 webssh.SetBuffSize(8192)
 webssh.SetId(id)
 webssh.SetConnTimeOut(15 * time.Second)
+webssh.DisableSZ()
+//webssh.DisableRZ()
 ...
 upGrader := websocket.Upgrader{
     CheckOrigin: func(r *http.Request) bool {
         return true
     },
-    Subprotocols: []string{r.Header.Get("Sec-WebSocket-Protocol")},
+    //Subprotocols: []string{r.Header.Get("Sec-WebSocket-Protocol")},
+    Subprotocols: []string{"webssh"},
     ReadBufferSize: 8192,
     WriteBufferSize: 8192,
 }
@@ -43,7 +47,7 @@ type messageType string
 
 const (
 	messageTypeAddr		 = "addr"
-	messageTypeTerm     = "term"
+	messageTypeTerm      = "term"
 	messageTypeLogin     = "login"
 	messageTypePassword  = "password"
 	messageTypePublickey = "publickey"

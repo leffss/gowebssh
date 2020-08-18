@@ -153,7 +153,8 @@ function ws_connect() {
 			file_el.onchange = function (e) {
 				let files_obj = file_el.files;
 				hideModal();
-				Zmodem.Browser.send_files(zsession, files_obj, {
+				//Zmodem.Browser.send_files(zsession, files_obj, {
+				Zmodem.Browser.send_block_files(zsession, files_obj, {
 						on_offer_response(obj, xfer) {
 							if (xfer) {
 								// term.write("\r\n");

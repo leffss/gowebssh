@@ -65,6 +65,7 @@ type WebSSH struct {
 	websocket *websocket.Conn
 	connTimeout time.Duration
 	logger *log.Logger
+	DisableZModemSZ, DisableZModemRZ bool
 	ZModemSZ, ZModemRZ, ZModemSZOO bool
 }
 
@@ -76,6 +77,22 @@ func NewWebSSH() *WebSSH {
 		term: DefaultTerm,
 		connTimeout: DefaultConnTimeout,
 	}
+}
+
+func (ws *WebSSH) DisableSZ() {
+	ws.DisableZModemSZ = true
+}
+
+func (ws *WebSSH) EnableSZ() {
+	ws.DisableZModemSZ = false
+}
+
+func (ws *WebSSH) DisableRZ() {
+	ws.DisableZModemRZ = true
+}
+
+func (ws *WebSSH) EnableRZ() {
+	ws.DisableZModemRZ = false
 }
 
 func (ws *WebSSH) SetLogger(logger *log.Logger) {
@@ -400,8 +417,12 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 	if err != nil {
 		return errors.Wrap(err, "get stderr channel error")
 	}
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return errors.Wrap(err, "get stdin channel error")
+	}
 
-	copyToMessage := func(t messageType, r io.Reader) {
+	copyToMessage := func(t messageType, r io.Reader, w io.WriteCloser) {
 		buff := make([]byte, ws.buffSize)
 		for {
 			n, err := r.Read(buff)
@@ -492,35 +513,60 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 					}
 				} else {
 					if x, ok := ByteContains(buff[:n], ZModemSZStart); ok {
-						ws.ZModemSZ = true
-						if len(x) != 0 {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						if ws.DisableZModemSZ {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("sz download is disabled")})
+							w.Write(ZModemCancel)
+						} else {
+							ws.ZModemSZ = true
+							if len(x) != 0 {
+								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							}
+							conn.WriteMessage(websocket.BinaryMessage, ZModemSZStart)
 						}
-						conn.WriteMessage(websocket.BinaryMessage, ZModemSZStart)
 					} else if x, ok := ByteContains(buff[:n], ZModemRZStart); ok {
-						ws.ZModemRZ = true
-						if len(x) != 0 {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						if ws.DisableZModemRZ {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							w.Write(ZModemCancel)
+						} else {
+							ws.ZModemRZ = true
+							if len(x) != 0 {
+								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							}
+							conn.WriteMessage(websocket.BinaryMessage, ZModemRZStart)
 						}
-						conn.WriteMessage(websocket.BinaryMessage, ZModemRZStart)
 					} else if x, ok := ByteContains(buff[:n], ZModemRZEStart); ok {
-						ws.ZModemRZ = true
-						if len(x) != 0 {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						if ws.DisableZModemRZ {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							w.Write(ZModemCancel)
+						} else {
+							ws.ZModemRZ = true
+							if len(x) != 0 {
+								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							}
+							conn.WriteMessage(websocket.BinaryMessage, ZModemRZEStart)
 						}
-						conn.WriteMessage(websocket.BinaryMessage, ZModemRZEStart)
 					} else if x, ok := ByteContains(buff[:n], ZModemRZSStart); ok {
-						ws.ZModemRZ = true
-						if len(x) != 0 {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						if ws.DisableZModemRZ {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							w.Write(ZModemCancel)
+						} else {
+							ws.ZModemRZ = true
+							if len(x) != 0 {
+								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							}
+							conn.WriteMessage(websocket.BinaryMessage, ZModemRZSStart)
 						}
-						conn.WriteMessage(websocket.BinaryMessage, ZModemRZSStart)
 					} else if x, ok := ByteContains(buff[:n], ZModemRZESStart); ok {
-						ws.ZModemRZ = true
-						if len(x) != 0 {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+						if ws.DisableZModemRZ {
+							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							w.Write(ZModemCancel)
+						} else {
+							ws.ZModemRZ = true
+							if len(x) != 0 {
+								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							}
+							conn.WriteMessage(websocket.BinaryMessage, ZModemRZESStart)
 						}
-						conn.WriteMessage(websocket.BinaryMessage, ZModemRZESStart)
 					} else {
 						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 					}
@@ -528,7 +574,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 			}
 		}
 	}
-	go copyToMessage(messageTypeStdout, stdout)
-	go copyToMessage(messageTypeStderr, stderr)
+	go copyToMessage(messageTypeStdout, stdout, stdin)
+	go copyToMessage(messageTypeStderr, stderr, stdin)
 	return nil
 }
