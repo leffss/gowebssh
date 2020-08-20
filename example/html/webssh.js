@@ -195,8 +195,8 @@ function ws_connect() {
 		} else {
 			percent = Math.round(offset / total * 100);
 		}
-
 		term.write("\r" + name + ": " + total + " " + offset + " " + percent + "%    ");
+		// console.log("\r" + name + ": " + total + " " + offset + " " + percent + "%    ");
 	}
 
 	function downloadFile(zsession) {

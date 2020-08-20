@@ -23,7 +23,7 @@ func run() {
 		webssh.SetLogger(log.New(os.Stderr, "[webssh] ", log.Ltime|log.Ldate))
 
 		// 是否启用 sz 与 rz
-		webssh.DisableSZ()
+		//webssh.DisableSZ()
 		//webssh.DisableRZ()
 
 		upGrader := websocket.Upgrader{

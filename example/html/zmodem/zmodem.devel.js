@@ -1684,7 +1684,7 @@ Zmodem.Session = class ZmodemSession extends _Eventer {
      * @param {number[]} octets - The input octets.
      */
     consume(octets) {
-console.log("consuming", octets);
+        // console.log("consuming", octets);
         this._before_consume(octets);
 
         if (this._aborted) throw new Zmodem.Error('already_aborted');

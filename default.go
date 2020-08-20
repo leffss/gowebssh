@@ -10,5 +10,5 @@ var (
 	DefaultTerm = TermXterm
 	DefaultConnTimeout = 30 * time.Second
 	DefaultLogger = log.New(ioutil.Discard, "[webssh] ", log.Ltime|log.Ldate)
-	DefaultBuffSize = uint32(1024)
+	DefaultBuffSize = uint32(8192)
 )

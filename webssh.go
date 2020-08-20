@@ -392,6 +392,7 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 		ssh.ECHO: 1,
 		ssh.TTY_OP_ISPEED: 8192,
 		ssh.TTY_OP_OSPEED: 8192,
+		ssh.IEXTEN: 0,
 	}
 	if msg.Cols <= 0 || msg.Cols > 500 {
 		msg.Cols = 40
@@ -517,11 +518,16 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("sz download is disabled")})
 							w.Write(ZModemCancel)
 						} else {
-							ws.ZModemSZ = true
-							if len(x) != 0 {
-								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							if y, ok := ByteContains(x, ZModemCancel); ok {
+								// 下载不存在的文件以及文件夹(zmodem 不支持下载文件夹)时
+								conn.WriteJSON(&message{Type: t, Data: y})
+							} else {
+								ws.ZModemSZ = true
+								if len(x) != 0 {
+									conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+								}
+								conn.WriteMessage(websocket.BinaryMessage, ZModemSZStart)
 							}
-							conn.WriteMessage(websocket.BinaryMessage, ZModemSZStart)
 						}
 					} else if x, ok := ByteContains(buff[:n], ZModemRZStart); ok {
 						if ws.DisableZModemRZ {
