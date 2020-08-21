@@ -182,6 +182,7 @@ func (ws *WebSSH) server() error {
 			if err != nil {
 				return errors.Wrap(err, "write message to ssh error")
 			}
+			continue
 		} else {
 			err = json.Unmarshal(data, &msg)
 			if err != nil {

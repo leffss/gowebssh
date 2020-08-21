@@ -153,8 +153,37 @@ function ws_connect() {
 			file_el.onchange = function (e) {
 				let files_obj = file_el.files;
 				hideModal();
-				//Zmodem.Browser.send_files(zsession, files_obj, {
-				Zmodem.Browser.send_block_files(zsession, files_obj, {
+				let files = [];
+				for (let i of files_obj) {
+					if (i.size <= 2048 * 1024 * 1024) {
+						files.push(i);
+					} else {
+						console.log(i.name, i.size, '超过 2048 MB, 无法上传')
+					}
+				}
+				if (files.length === 0) {
+					try {
+						term.detach();
+					} catch (e) {
+						// console.log(e);
+					}
+					try {
+						term.attach(socket);
+					} catch (e) {
+						// console.log(e);
+					}
+					try {
+						// zsession 每 5s 发送一个 ZACK 包，5s 后会出现提示最后一个包是 ”ZACK“ 无法正常关闭
+						// 这里直接设置 _last_header_name 为 ZRINIT，就可以强制关闭了
+						zsession._last_header_name = "ZRINIT";
+						zsession.close();
+					} catch (e) {
+						console.log(e);
+					}
+					return
+				}
+				//Zmodem.Browser.send_files(zsession, files, {
+				Zmodem.Browser.send_block_files(zsession, files, {
 						on_offer_response(obj, xfer) {
 							if (xfer) {
 								// term.write("\r\n");
@@ -202,6 +231,11 @@ function ws_connect() {
 	function downloadFile(zsession) {
 		zsession.on("offer", function(xfer) {
 			function on_form_submit() {
+				if (xfer.get_details().size > 2048 * 1024 * 1024) {
+					xfer.skip();
+					console.log(xfer.get_details().name, xfer.get_details().size, '超过 2048 MB, 无法下载');
+					return
+				}
 				let FILE_BUFFER = [];
 				xfer.on("input", (payload) => {
 					updateProgress(xfer);
