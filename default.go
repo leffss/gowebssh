@@ -8,7 +8,7 @@ import (
 
 var (
 	DefaultTerm = TermXterm
-	DefaultConnTimeout = 30 * time.Second
+	DefaultConnTimeout = 15 * time.Second
 	DefaultLogger = log.New(ioutil.Discard, "[webssh] ", log.Ltime|log.Ldate)
-	DefaultBuffSize = uint32(8192)
+	DefaultBuffSize = uint32(10240)
 )

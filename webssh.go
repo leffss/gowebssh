@@ -172,20 +172,20 @@ func (ws *WebSSH) server() error {
 		//	return errors.Wrap(err, "websocket close or error message type")
 		//}
 
-		_, data, err := ws.websocket.ReadMessage()
+		msgType, data, err := ws.websocket.ReadMessage()
 		if err != nil {
 			return errors.Wrap(err, "websocket close or read message err")
 		}
-
-		// 如果不是标准的信息格式，则是 xterm 输入或者 zmodem 数据流，则直接发送给 ssh 服务端
-		err = json.Unmarshal(data, &msg)
-		if err != nil {
-
-			// fmt.Printf("ssh client input: %+q\n", string(data))
-
+		// BinaryMessage 是 zmodem 数据流，则直接发送给 ssh 服务端, 可以提高 rz 上传速率
+		if msgType == websocket.BinaryMessage {
 			_, err = stdin.Write(data)
 			if err != nil {
-				log.Println(err)
+				return errors.Wrap(err, "write message to ssh error")
+			}
+		} else {
+			err = json.Unmarshal(data, &msg)
+			if err != nil {
+				return errors.Wrap(err, "error format input message")
 			}
 		}
 		switch msg.Type {
@@ -229,17 +229,14 @@ func (ws *WebSSH) server() error {
 			if hasAuth {
 				continue
 			}
-
 			if ws.sshConn == nil {
 				ws.logger.Printf("must connect addr first")
 				continue
 			}
-
 			if config.User == "" {
 				ws.logger.Printf("must set user first")
 				continue
 			}
-
 			password, _ := url.QueryUnescape(string(msg.Data))
 			//ws.logger.Printf("(%s) auth with password %s", ws.id, password)
 			ws.logger.Printf("(%s) auth with password ******", ws.id)
@@ -390,8 +387,8 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 	}
 	modes := ssh.TerminalModes{
 		ssh.ECHO: 1,
-		ssh.TTY_OP_ISPEED: 8192,
-		ssh.TTY_OP_OSPEED: 8192,
+		ssh.TTY_OP_ISPEED: 10240,
+		ssh.TTY_OP_OSPEED: 10240,
 		ssh.IEXTEN: 0,
 	}
 	if msg.Cols <= 0 || msg.Cols > 500 {
@@ -455,18 +452,24 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 				}
 			} else {
 				if ws.ZModemSZ {
-					if x, ok := ByteContains(buff[:n], ZModemSZEnd); ok {
-						ws.ZModemSZ = false
-						ws.ZModemSZOO = true
-						conn.WriteMessage(websocket.BinaryMessage, ZModemSZEnd)
-						if len(x) != 0 {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
-						}
-					} else if _, ok := ByteContains(buff[:n], ZModemCancel); ok {
-						ws.ZModemSZ = false
+					if uint32(n) == ws.buffSize {
+						// 如果读取的长度为 buffsize，则认为是在传输数据，
+						// 这样可以提高 sz 下载速率，很低概率会误判
 						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
 					} else {
-						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+						if x, ok := ByteContains(buff[:n], ZModemSZEnd); ok {
+							ws.ZModemSZ = false
+							ws.ZModemSZOO = true
+							conn.WriteMessage(websocket.BinaryMessage, ZModemSZEnd)
+							if len(x) != 0 {
+								conn.WriteJSON(&message{Type: messageTypeConsole, Data: x})
+							}
+						} else if _, ok := ByteContains(buff[:n], ZModemCancel); ok {
+							ws.ZModemSZ = false
+							conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+						} else {
+							conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+						}
 					}
 				} else if ws.ZModemRZ {
 					if x, ok := ByteContains(buff[:n], ZModemRZEnd); ok {
