@@ -388,8 +388,8 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 	}
 	modes := ssh.TerminalModes{
 		ssh.ECHO: 1,
-		ssh.TTY_OP_ISPEED: 10240,
-		ssh.TTY_OP_OSPEED: 10240,
+		ssh.TTY_OP_ISPEED: 8192,
+		ssh.TTY_OP_OSPEED: 8192,
 		ssh.IEXTEN: 0,
 	}
 	if msg.Cols <= 0 || msg.Cols > 500 {

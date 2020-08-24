@@ -17,7 +17,7 @@ func run() {
 		webssh := gowebssh.NewWebSSH()
 		// term 可以使用 ansi, linux, vt100, xterm, dumb，除了 dumb外其他都有颜色显示, 默认 xterm
 		webssh.SetTerm(gowebssh.TermXterm)
-		webssh.SetBuffSize(10240)
+		webssh.SetBuffSize(8192)
 		webssh.SetId(id)
 		webssh.SetConnTimeOut(5 * time.Second)
 		webssh.SetLogger(log.New(os.Stderr, "[webssh] ", log.Ltime|log.Ldate))
@@ -34,8 +34,8 @@ func run() {
 			// 处理 Sec-WebSocket-Protocol Header
 			//Subprotocols: []string{r.Header.Get("Sec-WebSocket-Protocol")},
 			Subprotocols: []string{"webssh"},
-			ReadBufferSize: 10240,
-			WriteBufferSize: 10240,
+			ReadBufferSize: 8192,
+			WriteBufferSize: 8192,
 		}
 
 		ws, err := upGrader.Upgrade(w, r, nil)
@@ -44,8 +44,8 @@ func run() {
 			log.Panic(err)
 		}
 
-		ws.SetCompressionLevel(4)
-		ws.EnableWriteCompression(true)
+		//ws.SetCompressionLevel(4)
+		//ws.EnableWriteCompression(true)
 
 		webssh.AddWebsocket(ws)
 	})

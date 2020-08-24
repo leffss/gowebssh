@@ -90,8 +90,21 @@ function ws_connect() {
 		cols: connect_info.cols,
 		rows: connect_info.rows,
 		useStyle: true,
-		cursorBlink: true
+		cursorBlink: true,
+		theme: {
+			foreground: '#7e9192',
+			background: '#002833',
+		}
 	});
+
+	toastr.options.closeButton = false;
+	toastr.options.showMethod = 'slideDown';
+	toastr.options.hideMethod = 'fadeOut';
+	toastr.options.closeMethod = 'fadeOut';
+	toastr.options.timeOut = 5000;
+	toastr.options.extendedTimeOut = 3000;
+	// toastr.options.progressBar = true;
+	toastr.options.positionClass = 'toast-top-right';
 
     let socket = new WebSocket(connect_info.protocol + connect_info.hostname + connect_info.ws_port + '/api/ssh', ['webssh']);
     // let socket = new WebSocket('ws://127.0.0.1:80/ws/webssh', ['webssh']);
@@ -158,7 +171,8 @@ function ws_connect() {
 					if (i.size <= 2048 * 1024 * 1024) {
 						files.push(i);
 					} else {
-						console.log(i.name, i.size, '超过 2048 MB, 无法上传')
+						toastr.warning(`${i.name} 超过 2048 MB, 无法上传`);
+						// console.log(i.name, i.size, '超过 2048 MB, 无法上传');
 					}
 				}
 				if (files.length === 0) {
@@ -213,13 +227,13 @@ function ws_connect() {
 		return Zmodem.Browser.save_to_disk(buffer, xfer.get_details().name);
 	}
 
-	function updateProgress(xfer) {
+	async function updateProgress(xfer) {
 		let detail = xfer.get_details();
 		let name = detail.name;
 		let total = detail.size;
 		let offset = xfer.get_offset();
 		let percent;
-		if (total === 0) {
+		if (total === 0 || total === offset) {
 			percent = 100
 		} else {
 			percent = Math.round(offset / total * 100);
@@ -233,7 +247,8 @@ function ws_connect() {
 			function on_form_submit() {
 				if (xfer.get_details().size > 2048 * 1024 * 1024) {
 					xfer.skip();
-					console.log(xfer.get_details().name, xfer.get_details().size, '超过 2048 MB, 无法下载');
+					toastr.warning(`${xfer.get_details().name} 超过 2048 MB, 无法下载`);
+					// console.log(xfer.get_details().name, xfer.get_details().size, '超过 2048 MB, 无法下载');
 					return
 				}
 				let FILE_BUFFER = [];
@@ -272,7 +287,7 @@ function ws_connect() {
 	term.focus();
 	$("body").attr("onbeforeunload",'checkwindow()'); //增加刷新关闭提示属性
 
-	var zsentry = new Zmodem.Sentry( {
+	let zsentry = new Zmodem.Sentry( {
 		to_terminal: function(octets) {},  //i.e. send to the terminal
 		on_detect: function(detection) {
 			let zsession = detection.confirm();
@@ -292,17 +307,13 @@ function ws_connect() {
 
 	socket.onopen = function () {
 		socket.send(JSON.stringify({ type: "addr", data: utoa(connect_info.host + ":" + connect_info.port) }));
-
 		//socket.send(JSON.stringify({ type: "term", data: utoa("linux") }));
-
 		socket.send(JSON.stringify({ type: "login", data: utoa(connect_info.user) }));
-
 		if (connect_info.auth === 'pwd') {
 			socket.send(JSON.stringify({ type: "password", data: utoa(connect_info.passwd) }));
 		} else if (connect_info.auth === 'key') {
 			socket.send(JSON.stringify({ type: "publickey", data: utoa(connect_info.ssh_key) }));
 		}
-
 		socket.send(JSON.stringify({ type: "resize", cols: connect_info.cols, rows: connect_info.rows }));
 		term.resize(connect_info.cols, connect_info.rows);
 		
@@ -311,6 +322,7 @@ function ws_connect() {
         // term.on('data', function (data) {
 		// 	socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
         // });
+
         // v4 xterm.js
         term.onData(function (data) {
             socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
@@ -319,28 +331,48 @@ function ws_connect() {
 
 	// 接收数据
 	socket.onmessage = function (recv) {
-		try {
-			var msg = JSON.parse(recv.data);
-			switch (msg.type) {
-				case "stdout":
-				case "stderr":
-					term.write(atou(msg.data));
-					break;
-				case "console":
-					console.log(atou(msg.data));
-					break;
-			}
-		} catch (error) {
-			// console.log(error);
-			// console.log("处理zmodem", recv.data);
+		// try {
+		// 	let msg = JSON.parse(recv.data);
+		// 	switch (msg.type) {
+		// 		case "stdout":
+		// 		case "stderr":
+		// 			term.write(atou(msg.data));
+		// 			break;
+		// 		case "console":
+		// 			console.log(atou(msg.data));
+		// 			break;
+		// 		default:
+		// 			console.log('unsupport type msg', msg);
+		// 	}
+		// } catch (error) {
+		// 	zsentry.consume(recv.data);
+		// }
+		if (typeof recv.data === 'object') {
 			zsentry.consume(recv.data);
+		} else {
+			try {
+				let msg = JSON.parse(recv.data);
+				switch (msg.type) {
+					case "stdout":
+					case "stderr":
+						term.write(atou(msg.data));
+						break;
+					case "console":
+						console.log(atou(msg.data));
+						break;
+					default:
+						console.log('unsupport type msg', msg);
+				}
+			} catch (e) {
+				console.log('unsupport data', recv.data);
+			}
 		}
 	};
 
 	// 连接错误
 	socket.onerror = function (e) {
-		term.write('connect error');
 		console.log(e);
+		term.write('connect error');
 	};
 
 	// 关闭连接
@@ -353,7 +385,7 @@ function ws_connect() {
 	};
 
 	// 监听浏览器窗口, 根据浏览器窗口大小修改终端大小, 延迟改变
-	var timer = 0;
+	let timer = 0;
 	$(window).resize(function () {
 		clearTimeout(timer);
 		timer = setTimeout(function() {
