@@ -76,25 +76,27 @@ type message struct {
 4. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
 5. 窗口大小调整 `{type:"resize",cols:40,rows:80}`
 6. 忽略数据流 `{type:"ignore",data:"$data"}`     # 客户端发送到服务端，服务器忽略，可以用于 zmodem 文件传输记录
-7. console 数据流 `{type:"console",data:"$data"}`     # 服务端发送到客户端，客户端显示到 console 控制台的数据，可以用于 zmodem 文件传输时的 debug 信息
-8. 标准流数据  
+7. console 数据流 `{type:"console",data:"$data"}`     # 服务端发送到客户端，客户端显示到 console 控制台的数据，
+可以用于 zmodem 文件传输时的 debug 信息
+8. alert 数据流 `{type:"alert",data:"$data"}`  # # 服务端发送到客户端的 alert 信息
+9. 标准流数据  
    `{type:"stdin",data:"$data"}`
    `{type:"stdout",data:"$data"}`
    `{type:"stderr",data:"$data"}`  
    客户端发送 stdin, 接收 stdout, stderr
 
-
 ## Data 数据
 
-消息的 data 数据使用 base64 编码传输，JavaScript 的`atob & btoa`可用于 base64 编码，但对 utf8 有兼容性问题，要使用`decodeURIComponent & encodeURIComponent`做包裹, 以下是实现
+消息的 data 数据使用 base64 编码传输，JavaScript 的`atob & btoa`可用于 base64 编码，但对 utf8 有兼容性问题，
+要使用`decodeURIComponent & encodeURIComponent`做包裹, 以下是实现
 
 ```javascript
-function atou(encodeString) {
-  return decodeURIComponent(escape(atob(encodeString)));
+function utf8_to_b64(rawString) {
+  return btoa(unescape(encodeURIComponent(rawString)));
 }
 
-function utoa(rawString) {
-  return btoa(encodeURIComponent(rawString));
+function b64_to_utf8(encodeString) {
+  return decodeURIComponent(escape(atob(encodeString)));
 }
 ```
 

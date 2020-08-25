@@ -14,6 +14,7 @@ const (
 	messageTypeResize    = "resize"
 	messageTypeIgnore    = "ignore"
 	messageTypeConsole   = "console"
+	messageTypeAlert   	 = "alert"
 )
 
 type message struct {

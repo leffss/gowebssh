@@ -2,12 +2,12 @@ function checkwindow() {
 	event.returnValue=false;
 }
 
-function atou(encodeString) {
-	return decodeURIComponent(escape(atob(encodeString)));
+function utf8_to_b64(rawString) {
+	return btoa(unescape(encodeURIComponent(rawString)));
 }
 
-function utoa(rawString) {
-	return btoa(encodeURIComponent(rawString));
+function b64_to_utf8(encodeString) {
+	return decodeURIComponent(escape(atob(encodeString)));
 }
 
 function readFile(element_id, res_id) {
@@ -17,17 +17,27 @@ function readFile(element_id, res_id) {
     }
     // 获取文件
     const files = objFile.files;
+    if (files[0].size > 16 * 1024) {
+		toastr.warning("文件大于 16 KB，请选择正确的密钥");
+		objFile.value = "";
+		return
+	}
     // 新建一个FileReader
     const reader = new FileReader();
-    // 读取文件 
-    reader.readAsText(files[0], "UTF-8");
 	// 读取完文件之后会回来这里
-    reader.onload = function(e){
+    reader.onload = function(e) {
   		// 读取文件内容
 		let fileString = e.target.result;
 		// 接下来可对文件内容进行处理
 		$("#" + res_id).text(fileString);
-    }
+    };
+    reader.onerror = function(e) {
+    	console.log(e);
+		toastr.warning("读取密钥错误");
+		objFile.value = "";
+	};
+	// 读取文件
+	reader.readAsText(files[0], "UTF-8");
 }
 
 function get_term_size() {
@@ -76,7 +86,6 @@ function get_connect_info() {
 
 function ws_connect() {
     let connect_info = get_connect_info();
-
 	// Terminal.applyAddon(attach);
 	// Terminal.applyAddon(fit);
 	// Terminal.applyAddon(fullscreen);
@@ -84,7 +93,6 @@ function ws_connect() {
 	// Terminal.applyAddon(terminado);
 	// Terminal.applyAddon(webLinks);
 	// Terminal.applyAddon(zmodem);
-
     let term = new Terminal({
 		rendererType: 'canvas',
 		cols: connect_info.cols,
@@ -135,13 +143,11 @@ function ws_connect() {
 						} catch (e) {
 							// console.log(e);
 						}
-
 						try {
 							term.attach(socket);
 						} catch (e) {
 							// console.log(e);
 						}
-
 						try {
 							// zsession 每 5s 发送一个 ZACK 包，5s 后会出现提示最后一个包是 ”ZACK“ 无法正常关闭
 							// 这里直接设置 _last_header_name 为 ZRINIT，就可以强制关闭了
@@ -203,7 +209,7 @@ function ws_connect() {
 								// term.write("\r\n");
 							} else {
 								term.write(obj.name + " was upload skipped\r\n");
-								socket.send(JSON.stringify({ type: "ignore", data: utoa("\r\n" + obj.name + " was upload skipped\r\n") }));
+								// socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64("\r\n" + obj.name + " was upload skipped\r\n") }));
 							}
 						},
 						on_progress(obj, xfer) {
@@ -211,8 +217,7 @@ function ws_connect() {
 						},
 						on_file_complete(obj) {
 							term.write("\r\n");
-							socket.send(JSON.stringify({ type: "ignore", data: utoa("\r\n" + obj.name + " was upload success\r\n") }));
-							// console.log("COMPLETE", obj);
+							socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64("\r\n" + obj.name + " was upload success\r\n") }));
 						},
 					}
 				).then(zsession.close.bind(zsession), console.error.bind(console)
@@ -238,8 +243,7 @@ function ws_connect() {
 		} else {
 			percent = Math.round(offset / total * 100);
 		}
-		term.write("\r" + name + ": " + total + " " + offset + " " + percent + "%    ");
-		// console.log("\r" + name + ": " + total + " " + offset + " " + percent + "%    ");
+		term.write("\r" + name + ": " + total + " " + offset + " " + percent + "% ");
 	}
 
 	function downloadFile(zsession) {
@@ -248,7 +252,6 @@ function ws_connect() {
 				if (xfer.get_details().size > 2048 * 1024 * 1024) {
 					xfer.skip();
 					toastr.warning(`${xfer.get_details().name} 超过 2048 MB, 无法下载`);
-					// console.log(xfer.get_details().name, xfer.get_details().size, '超过 2048 MB, 无法下载');
 					return
 				}
 				let FILE_BUFFER = [];
@@ -261,22 +264,18 @@ function ws_connect() {
 					() => {
 						saveFile(xfer, FILE_BUFFER);
 						term.write("\r\n");
-						socket.send(JSON.stringify({ type: "ignore", data: utoa("\r\n" + xfer.get_details().name + " was download success\r\n") }));
+						socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64("\r\n" + xfer.get_details().name + " was download success\r\n") }));
 					},
 					console.error.bind(console)
 				);
 			}
-
 			on_form_submit();
-
 		});
-
 		let promise = new Promise( (res) => {
 			zsession.on("session_end", () => {
 				res();
 			});
 		});
-
 		zsession.start();
 		return promise;
 	}
@@ -285,7 +284,7 @@ function ws_connect() {
 	$('#webssh-terminal').removeClass('hide');
 	term.open(document.getElementById('terminal'));
 	term.focus();
-	$("body").attr("onbeforeunload",'checkwindow()'); //增加刷新关闭提示属性
+	$("body").attr("onbeforeunload", 'checkwindow()'); //增加刷新关闭提示属性
 
 	let zsentry = new Zmodem.Sentry( {
 		to_terminal: function(octets) {},  //i.e. send to the terminal
@@ -306,13 +305,13 @@ function ws_connect() {
 	});
 
 	socket.onopen = function () {
-		socket.send(JSON.stringify({ type: "addr", data: utoa(connect_info.host + ":" + connect_info.port) }));
-		//socket.send(JSON.stringify({ type: "term", data: utoa("linux") }));
-		socket.send(JSON.stringify({ type: "login", data: utoa(connect_info.user) }));
+		socket.send(JSON.stringify({ type: "addr", data: utf8_to_b64(connect_info.host + ":" + connect_info.port) }));
+		//socket.send(JSON.stringify({ type: "term", data: utf8_to_b64("linux") }));
+		socket.send(JSON.stringify({ type: "login", data: utf8_to_b64(connect_info.user) }));
 		if (connect_info.auth === 'pwd') {
-			socket.send(JSON.stringify({ type: "password", data: utoa(connect_info.passwd) }));
+			socket.send(JSON.stringify({ type: "password", data: utf8_to_b64(connect_info.passwd) }));
 		} else if (connect_info.auth === 'key') {
-			socket.send(JSON.stringify({ type: "publickey", data: utoa(connect_info.ssh_key) }));
+			socket.send(JSON.stringify({ type: "publickey", data: utf8_to_b64(connect_info.ssh_key) }));
 		}
 		socket.send(JSON.stringify({ type: "resize", cols: connect_info.cols, rows: connect_info.rows }));
 		term.resize(connect_info.cols, connect_info.rows);
@@ -320,33 +319,17 @@ function ws_connect() {
 		// 发送数据
 		// v3 xterm.js
         // term.on('data', function (data) {
-		// 	socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
+		// 	socket.send(JSON.stringify({ type: "stdin", data: utf8_to_b64(data) }));
         // });
 
         // v4 xterm.js
         term.onData(function (data) {
-            socket.send(JSON.stringify({ type: "stdin", data: btoa(data) }));
+            socket.send(JSON.stringify({ type: "stdin", data: utf8_to_b64(data) }));
         });
     };
 
 	// 接收数据
 	socket.onmessage = function (recv) {
-		// try {
-		// 	let msg = JSON.parse(recv.data);
-		// 	switch (msg.type) {
-		// 		case "stdout":
-		// 		case "stderr":
-		// 			term.write(atou(msg.data));
-		// 			break;
-		// 		case "console":
-		// 			console.log(atou(msg.data));
-		// 			break;
-		// 		default:
-		// 			console.log('unsupport type msg', msg);
-		// 	}
-		// } catch (error) {
-		// 	zsentry.consume(recv.data);
-		// }
 		if (typeof recv.data === 'object') {
 			zsentry.consume(recv.data);
 		} else {
@@ -355,10 +338,13 @@ function ws_connect() {
 				switch (msg.type) {
 					case "stdout":
 					case "stderr":
-						term.write(atou(msg.data));
+						term.write(b64_to_utf8(msg.data));
 						break;
 					case "console":
-						console.log(atou(msg.data));
+						console.log(b64_to_utf8(msg.data));
+						break;
+					case "alert":
+						toastr.warning(b64_to_utf8(msg.data));
 						break;
 					default:
 						console.log('unsupport type msg', msg);
@@ -379,7 +365,6 @@ function ws_connect() {
 	socket.onclose = function (e) {
 		console.log(e);
 		term.write('disconnect');
-
 		// term.detach();
 		// term.destroy();
 	};
@@ -390,8 +375,8 @@ function ws_connect() {
 		clearTimeout(timer);
 		timer = setTimeout(function() {
 			let cols_rows = get_term_size();
-			socket.send(JSON.stringify({ type: "resize", cols: cols_rows.cols, rows: cols_rows.rows }));
 			term.resize(cols_rows.cols, cols_rows.rows);
+			socket.send(JSON.stringify({ type: "resize", cols: cols_rows.cols, rows: cols_rows.rows }));
 		}, 100)
 	});
 }

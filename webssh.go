@@ -431,7 +431,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 
 			//res := fmt.Sprintf("%+q", string(buff[:n]))
 			//fmt.Println(buff[:n])
-			//fmt.Println(t, res)
+			//fmt.Println(t, n, res)
 
 			if ws.ZModemSZOO {
 				ws.ZModemSZOO = false
@@ -455,7 +455,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 				if ws.ZModemSZ {
 					if uint32(n) == ws.buffSize {
 						// 如果读取的长度为 buffsize，则认为是在传输数据，
-						// 这样可以提高 sz 下载速率，很低概率会误判
+						// 这样可以提高 sz 下载速率，很低概率会误判 zmodem 取消操作
 						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
 					} else {
 						if x, ok := ByteContains(buff[:n], ZModemSZEnd); ok {
@@ -519,7 +519,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 				} else {
 					if x, ok := ByteContains(buff[:n], ZModemSZStart); ok {
 						if ws.DisableZModemSZ {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("sz download is disabled")})
+							conn.WriteJSON(&message{Type: messageTypeAlert, Data: []byte("sz download is disabled")})
 							w.Write(ZModemCancel)
 						} else {
 							if y, ok := ByteContains(x, ZModemCancel); ok {
@@ -535,7 +535,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 						}
 					} else if x, ok := ByteContains(buff[:n], ZModemRZStart); ok {
 						if ws.DisableZModemRZ {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							conn.WriteJSON(&message{Type: messageTypeAlert, Data: []byte("rz upload is disabled")})
 							w.Write(ZModemCancel)
 						} else {
 							ws.ZModemRZ = true
@@ -546,7 +546,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 						}
 					} else if x, ok := ByteContains(buff[:n], ZModemRZEStart); ok {
 						if ws.DisableZModemRZ {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							conn.WriteJSON(&message{Type: messageTypeAlert, Data: []byte("rz upload is disabled")})
 							w.Write(ZModemCancel)
 						} else {
 							ws.ZModemRZ = true
@@ -557,7 +557,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 						}
 					} else if x, ok := ByteContains(buff[:n], ZModemRZSStart); ok {
 						if ws.DisableZModemRZ {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							conn.WriteJSON(&message{Type: messageTypeAlert, Data: []byte("rz upload is disabled")})
 							w.Write(ZModemCancel)
 						} else {
 							ws.ZModemRZ = true
@@ -568,7 +568,7 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 						}
 					} else if x, ok := ByteContains(buff[:n], ZModemRZESStart); ok {
 						if ws.DisableZModemRZ {
-							conn.WriteJSON(&message{Type: messageTypeConsole, Data: []byte("rz upload is disabled")})
+							conn.WriteJSON(&message{Type: messageTypeAlert, Data: []byte("rz upload is disabled")})
 							w.Write(ZModemCancel)
 						} else {
 							ws.ZModemRZ = true
