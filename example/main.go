@@ -50,7 +50,7 @@ func run() {
 		webssh.AddWebsocket(ws)
 	})
 
-	log.Println("start webssh server")
+	log.Println("start webssh server @port 8000")
 	_ = http.ListenAndServe(":8000", nil)
 }
 

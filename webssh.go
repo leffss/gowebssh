@@ -3,15 +3,15 @@ package gowebssh
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"log"
 	"net"
 	"net/url"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
+	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -194,7 +194,7 @@ func (ws *WebSSH) server() error {
 			// 忽略的信息，比如使用 rz 时，记录里面无法看到上传的文件，
 			// 客户端上传完成可以可以发个忽略信息过来让服务端知晓
 			data, _ := url.QueryUnescape(string(msg.Data))
-			fmt.Printf("Ignore message: %s", data)
+			ws.logger.Printf("(%s) Ignore message: %s", ws.id, data)
 		case messageTypeAddr:
 			if hasAddr {
 				continue
@@ -339,7 +339,6 @@ func (ws *WebSSH) server() error {
 
 			hasAuth = true
 
-		// 为了兼容 zmodem， stdin 消息协议暂时无用，客户端数据都以二进制格式发送过来
 		case messageTypeStdin:
 			if stdin == nil {
 				ws.logger.Printf("stdin wait login")
@@ -357,11 +356,25 @@ func (ws *WebSSH) server() error {
 				ws.logger.Printf("resize wait session")
 				continue
 			}
+			if msg.Cols <= 0 {
+				msg.Cols = 40
+			}
+			if msg.Cols > 127 {
+				msg.Cols = 127
+			}
+			if msg.Rows <= 0 {
+				msg.Rows = 80
+			}
+			if msg.Rows > 426 {
+				msg.Rows = 426
+			}
 			err = session.WindowChange(msg.Rows, msg.Cols)
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("resize error\r\n")})
 				return errors.Wrap(err, "resize error")
 			}
+		default:
+			ws.logger.Printf("unsupport input msg: %v", msg)
 		}
 	}
 }
@@ -392,11 +405,17 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 		ssh.TTY_OP_OSPEED: 8192,
 		ssh.IEXTEN: 0,
 	}
-	if msg.Cols <= 0 || msg.Cols > 500 {
+	if msg.Cols <= 0 {
 		msg.Cols = 40
 	}
-	if msg.Rows <= 0 || msg.Rows > 1000 {
+	if msg.Cols > 127 {
+		msg.Cols = 127
+	}
+	if msg.Rows <= 0 {
 		msg.Rows = 80
+	}
+	if msg.Rows > 426 {
+		msg.Rows = 426
 	}
 	err = session.RequestPty(ws.term, msg.Rows, msg.Cols, modes)
 	if err != nil {

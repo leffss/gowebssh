@@ -10,6 +10,18 @@ function b64_to_utf8(encodeString) {
 	return decodeURIComponent(escape(atob(encodeString)));
 }
 
+function bytesHuman(bytes, precision) {
+	if (!/^([-+])?|(\.\d+)(\d+(\.\d+)?|(\d+\.)|Infinity)$/.test(bytes)) {
+		return '-'
+	}
+	if (bytes === 0) return '0';
+	if (typeof precision === 'undefined') precision = 1;
+	const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB', 'BB'];
+	const num = Math.floor(Math.log(bytes) / Math.log(1024));
+	const value = (bytes / Math.pow(1024, Math.floor(num))).toFixed(precision);
+	return `${value} ${units[num]}`
+}
+
 function readFile(element_id, res_id) {
     const objFile = document.getElementById(element_id);
     if(objFile.value === '') {
@@ -124,7 +136,7 @@ function ws_connect() {
             "<input id='fupload' name='fupload' type='file' style='display:none;' multiple='true'>" +
             "<i class='fa fa-cloud-upload fa-3x'></i>" +
             "<br />" +
-            "点击选择文件, 请尽量使用 rz -O 方式上传" +
+            "点击选择文件" +
             "</label>" +
             "<br />" +
             "<span style='margin-left:5px !important;' id='fileList'></span>" +
@@ -138,16 +150,6 @@ function ws_connect() {
 					label: '关闭',
 					className: 'btn-default',
 					callback: function (res) {
-						try {
-							term.detach();
-						} catch (e) {
-							// console.log(e);
-						}
-						try {
-							term.attach(socket);
-						} catch (e) {
-							// console.log(e);
-						}
 						try {
 							// zsession 每 5s 发送一个 ZACK 包，5s 后会出现提示最后一个包是 ”ZACK“ 无法正常关闭
 							// 这里直接设置 _last_header_name 为 ZRINIT，就可以强制关闭了
@@ -183,15 +185,16 @@ function ws_connect() {
 				}
 				if (files.length === 0) {
 					try {
-						term.detach();
+						// zsession 每 5s 发送一个 ZACK 包，5s 后会出现提示最后一个包是 ”ZACK“ 无法正常关闭
+						// 这里直接设置 _last_header_name 为 ZRINIT，就可以强制关闭了
+						zsession._last_header_name = "ZRINIT";
+						zsession.close();
 					} catch (e) {
-						// console.log(e);
+						console.log(e);
 					}
-					try {
-						term.attach(socket);
-					} catch (e) {
-						// console.log(e);
-					}
+					return
+				} else if (files.length >= 25) {
+					toastr.warning("上传文件个数不能超过 25 个");
 					try {
 						// zsession 每 5s 发送一个 ZACK 包，5s 后会出现提示最后一个包是 ”ZACK“ 无法正常关闭
 						// 这里直接设置 _last_header_name 为 ZRINIT，就可以强制关闭了
@@ -217,7 +220,7 @@ function ws_connect() {
 						},
 						on_file_complete(obj) {
 							term.write("\r\n");
-							socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64("\r\n" + obj.name + " was upload success\r\n") }));
+							socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64(obj.name + "(" + obj.size + ") was upload success") }));
 						},
 					}
 				).then(zsession.close.bind(zsession), console.error.bind(console)
@@ -232,7 +235,7 @@ function ws_connect() {
 		return Zmodem.Browser.save_to_disk(buffer, xfer.get_details().name);
 	}
 
-	async function updateProgress(xfer) {
+	async function updateProgress(xfer, action='upload') {
 		let detail = xfer.get_details();
 		let name = detail.name;
 		let total = detail.size;
@@ -243,7 +246,8 @@ function ws_connect() {
 		} else {
 			percent = Math.round(offset / total * 100);
 		}
-		term.write("\r" + name + ": " + total + " " + offset + " " + percent + "% ");
+		// term.write("\r" + name + ": " + total + " " + offset + " " + percent + "% ");
+		term.write("\r" + action + ' ' + name + ": " + bytesHuman(offset) + " " + bytesHuman(total) + " " + percent + "% ");
 	}
 
 	function downloadFile(zsession) {
@@ -256,7 +260,7 @@ function ws_connect() {
 				}
 				let FILE_BUFFER = [];
 				xfer.on("input", (payload) => {
-					updateProgress(xfer);
+					updateProgress(xfer, "download");
 					FILE_BUFFER.push( new Uint8Array(payload) );
 				});
 
@@ -264,7 +268,7 @@ function ws_connect() {
 					() => {
 						saveFile(xfer, FILE_BUFFER);
 						term.write("\r\n");
-						socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64("\r\n" + xfer.get_details().name + " was download success\r\n") }));
+						socket.send(JSON.stringify({ type: "ignore", data: utf8_to_b64(xfer.get_details().name + "(" + xfer.get_details().size + ") was download success") }));
 					},
 					console.error.bind(console)
 				);

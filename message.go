@@ -3,7 +3,7 @@ package gowebssh
 type messageType string
 
 const (
-	messageTypeAddr		 = "addr"
+	messageTypeAddr      = "addr"
 	messageTypeTerm      = "term"
 	messageTypeLogin     = "login"
 	messageTypePassword  = "password"
@@ -19,7 +19,7 @@ const (
 
 type message struct {
 	Type messageType `json:"type"`
-	Data []byte      `json:"data"`
+	Data []byte      `json:"data,omitempty"`
 	Cols int         `json:"cols,omitempty"`
 	Rows int         `json:"rows,omitempty"`
 }
