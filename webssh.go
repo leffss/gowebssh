@@ -448,18 +448,23 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 				return
 			}
 
-			//res := fmt.Sprintf("%+q", string(buff[:n]))
-			//fmt.Println(buff[:n])
-			//fmt.Println(t, n, res)
-
 			if ws.ZModemSZOO {
 				ws.ZModemSZOO = false
+				// 经过测试 centos7-8 使用的 lrzsz-0.12.20 在 sz 结束时会发送 ZModemSZEndOO
+				// 而 deepin20 等自带更新的 lrzsz-0.12.21rc 在 sz 结束时不会发送 ZModemSZEndOO， 而前端 zmodemjs
+				// 库只有接收到 ZModemSZEndOO 才会认为 sz 结束，固这里需判断 sz 结束时是否发送了 ZModemSZEndOO，
+				// 如果没有则手动发送一个，以便保证前端 zmodemjs 库正常运行（如果不发送，会导致使用 sz 命令时无法连续
+				// 下载多个文件）。
 				if n < 2 {
+					// 手动发送 ZModemSZEndOO
+					conn.WriteMessage(websocket.BinaryMessage, ZModemSZEndOO)
 					conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 				} else if n == 2 {
 					if buff[0] == ZModemSZEndOO[0] && buff[1] == ZModemSZEndOO[1] {
-						conn.WriteMessage(websocket.BinaryMessage, buff[:n])
+						conn.WriteMessage(websocket.BinaryMessage, ZModemSZEndOO)
 					} else {
+						// 手动发送 ZModemSZEndOO
+						conn.WriteMessage(websocket.BinaryMessage, ZModemSZEndOO)
 						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 					}
 				} else {
@@ -467,6 +472,8 @@ func (ws *WebSSH) transformOutput(session *ssh.Session, conn *websocket.Conn) er
 						conn.WriteMessage(websocket.BinaryMessage, buff[:2])
 						conn.WriteJSON(&message{Type: t, Data: buff[2:n]})
 					} else {
+						// 手动发送 ZModemSZEndOO
+						conn.WriteMessage(websocket.BinaryMessage, ZModemSZEndOO)
 						conn.WriteJSON(&message{Type: t, Data: buff[:n]})
 					}
 				}
