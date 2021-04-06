@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -54,6 +55,10 @@ func ByteContains(x, y []byte) (n []byte, contain bool)  {
 	lastIndex := index + len(y)
 	n = append(x[:index], x[lastIndex:]...)
 	return n, true
+}
+
+func UrlQueryUnescape(old string) (string, error)  {
+	return url.QueryUnescape(strings.ReplaceAll(old, "+", "%2b"))
 }
 
 // WebSSH 管理 Websocket 和 ssh 连接
@@ -193,13 +198,13 @@ func (ws *WebSSH) server() error {
 		case messageTypeIgnore:
 			// 忽略的信息，比如使用 rz 时，记录里面无法看到上传的文件，
 			// 客户端上传完成可以可以发个忽略信息过来让服务端知晓
-			data, _ := url.QueryUnescape(string(msg.Data))
+			data, _ := UrlQueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) Ignore message: %s", ws.id, data)
 		case messageTypeAddr:
 			if hasAddr {
 				continue
 			}
-			addr, _ := url.QueryUnescape(string(msg.Data))
+			addr, _ := UrlQueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) connect addr %s", ws.id, addr)
 			conn, err := net.DialTimeout("tcp", addr, ws.connTimeout)
 			if err != nil {
@@ -215,7 +220,7 @@ func (ws *WebSSH) server() error {
 			if hasTerm {
 				continue
 			}
-			term, _ := url.QueryUnescape(string(msg.Data))
+			term, _ := UrlQueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) set term %s", ws.id, term)
 			ws.SetTerm(term)
 			hasTerm = true
@@ -223,7 +228,7 @@ func (ws *WebSSH) server() error {
 			if hasLogin {
 				continue
 			}
-			config.User, _ = url.QueryUnescape(string(msg.Data))
+			config.User, _ = UrlQueryUnescape(string(msg.Data))
 			ws.logger.Printf("(%s) login with user %s", ws.id, config.User)
 			hasLogin = true
 		case messageTypePassword:
@@ -238,7 +243,7 @@ func (ws *WebSSH) server() error {
 				ws.logger.Printf("must set user first")
 				continue
 			}
-			password, _ := url.QueryUnescape(string(msg.Data))
+			password, _ := UrlQueryUnescape(string(msg.Data))
 			//ws.logger.Printf("(%s) auth with password %s", ws.id, password)
 			ws.logger.Printf("(%s) auth with password ******", ws.id)
 			config.Auth = append(config.Auth, ssh.Password(password))
@@ -295,7 +300,7 @@ func (ws *WebSSH) server() error {
 			//}
 
 			// 传过来的 Data 是经过 url 编码的
-			pemStrings, _ := url.QueryUnescape(string(msg.Data))
+			pemStrings, _ := UrlQueryUnescape(string(msg.Data))
 			//ws.logger.Printf("(%s) auth with privatekey %s", ws.id, pemStrings)
 			ws.logger.Printf("(%s) auth with privatekey ******", ws.id)
 			pemBytes := []byte(pemStrings)
@@ -344,7 +349,7 @@ func (ws *WebSSH) server() error {
 				ws.logger.Printf("stdin wait login")
 				continue
 			}
-			data, _ := url.QueryUnescape(string(msg.Data))
+			data, _ := UrlQueryUnescape(string(msg.Data))
 			_, err = stdin.Write([]byte(data))
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("write to stdin error\r\n")})
@@ -359,15 +364,15 @@ func (ws *WebSSH) server() error {
 			if msg.Cols <= 0 {
 				msg.Cols = 40
 			}
-			if msg.Cols > 127 {
-				msg.Cols = 127
-			}
+			//if msg.Cols > 127 {
+			//	msg.Cols = 127
+			//}
 			if msg.Rows <= 0 {
 				msg.Rows = 80
 			}
-			if msg.Rows > 426 {
-				msg.Rows = 426
-			}
+			//if msg.Rows > 426 {
+			//	msg.Rows = 426
+			//}
 			err = session.WindowChange(msg.Rows, msg.Cols)
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("resize error\r\n")})
@@ -408,15 +413,15 @@ func (ws *WebSSH) newSSHXtermSession(conn net.Conn, config *ssh.ClientConfig, ms
 	if msg.Cols <= 0 {
 		msg.Cols = 40
 	}
-	if msg.Cols > 127 {
-		msg.Cols = 127
-	}
+	//if msg.Cols > 127 {
+	//	msg.Cols = 127
+	//}
 	if msg.Rows <= 0 {
 		msg.Rows = 80
 	}
-	if msg.Rows > 426 {
-		msg.Rows = 426
-	}
+	//if msg.Rows > 426 {
+	//	msg.Rows = 426
+	//}
 	err = session.RequestPty(ws.term, msg.Rows, msg.Cols, modes)
 	if err != nil {
 		return nil, errors.Wrap(err, "open pty error")
