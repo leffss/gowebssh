@@ -58,7 +58,10 @@ func ByteContains(x, y []byte) (n []byte, contain bool)  {
 }
 
 func UrlQueryUnescape(old string) (string, error)  {
-	return url.QueryUnescape(strings.ReplaceAll(old, "+", "%2b"))
+	// 客户端发送过来的数据是 url 编码过的，这里需要解码
+	// url.QueryUnescape 会将'+'加号转换为' '空格。
+	// 必须先替换 % ，再替换 +
+	return url.QueryUnescape(strings.ReplaceAll(strings.ReplaceAll(old, "%", "%25"), "+", "%2b"))
 }
 
 // WebSSH 管理 Websocket 和 ssh 连接
