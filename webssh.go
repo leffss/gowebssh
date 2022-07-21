@@ -304,12 +304,23 @@ func (ws *WebSSH) server() error {
 
 			// 传过来的 Data 是经过 url 编码的
 			pemStrings, _ := UrlQueryUnescape(string(msg.Data))
+			passphrase, _ := UrlQueryUnescape(string(msg.Passphrase))
 			//ws.logger.Printf("(%s) auth with privatekey %s", ws.id, pemStrings)
 			ws.logger.Printf("(%s) auth with privatekey ******", ws.id)
 			pemBytes := []byte(pemStrings)
 
 			// 如果 key 有密码使用 ssh.ParsePrivateKeyWithPassphrase(pemBytes, []byte(passphrase))
-			signer, err := ssh.ParsePrivateKey(pemBytes)
+			var signer ssh.Signer
+			var err error
+			if passphrase != "" {
+				signer, err = ssh.ParsePrivateKeyWithPassphrase(pemBytes, []byte(passphrase))
+			} else {
+				signer, err = ssh.ParsePrivateKey(pemBytes)
+			}
+			if err != nil {
+				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("parse publickey erro\r\n")})
+				return errors.Wrap(err, "parse publickey error")
+			}
 			if err != nil {
 				_ = ws.websocket.WriteJSON(&message{Type: messageTypeStderr, Data: []byte("parse publickey erro\r\n")})
 				return errors.Wrap(err,"parse publickey error")
