@@ -14,7 +14,7 @@ const (
 	messageTypeResize    = "resize"
 	messageTypeIgnore    = "ignore"
 	messageTypeConsole   = "console"
-	messageTypeAlert   	 = "alert"
+	messageTypeAlert     = "alert"
 )
 
 type message struct {
@@ -22,4 +22,6 @@ type message struct {
 	Data []byte      `json:"data,omitempty"`
 	Cols int         `json:"cols,omitempty"`
 	Rows int         `json:"rows,omitempty"`
+	// 私钥短语
+	Passphrase []byte `json:"passphrase,omitempty"`
 }

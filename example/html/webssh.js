@@ -315,7 +315,7 @@ function ws_connect() {
 		if (connect_info.auth === 'pwd') {
 			socket.send(JSON.stringify({ type: "password", data: utf8_to_b64(connect_info.passwd) }));
 		} else if (connect_info.auth === 'key') {
-			socket.send(JSON.stringify({ type: "publickey", data: utf8_to_b64(connect_info.ssh_key) }));
+			socket.send(JSON.stringify({ type: "publickey", data: utf8_to_b64(connect_info.ssh_key), passphrase: utf8_to_b64(connect_info.passwd) }));
 		}
 		socket.send(JSON.stringify({ type: "resize", cols: connect_info.cols, rows: connect_info.rows }));
 		term.resize(connect_info.cols, connect_info.rows);
