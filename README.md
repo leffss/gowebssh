@@ -1,7 +1,13 @@
 # 说明
+
+> English doc [README](./README_eng.md)
+
+
+
 使用 `github.com/gorilla/websocket` 与 `golang.org/x/crypto/ssh` 实现的 webssh，支持颜色以及自动补全
 
 参考：https://github.com/myml/webssh ，在原项目的基础上新增 publickey 登陆、zmodem 上传下载（支持禁用 sz 或者 rz）
+
 
 
 # 服务器端文档
@@ -38,6 +44,8 @@ ws, _ := upGrader.Upgrade(w, r, nil)
 webssh.AddWebsocket(ws)
 ```
 
+
+
 # 客户端文档
 
 ## 消息类型
@@ -67,6 +75,8 @@ type message struct {
 }
 ```
 
+
+
 ## 消息协议
 
 1. 地址 `{type:"addr",data:"$addr"}`  
@@ -85,6 +95,8 @@ type message struct {
    `{type:"stderr",data:"$data"}`  
    客户端发送 stdin, 接收 stdout, stderr
 
+
+
 ## Data 数据
 
 消息的 data 数据使用 base64 编码传输，JavaScript 的`atob & btoa`可用于 base64 编码，但对 utf8 有兼容性问题，
@@ -100,11 +112,16 @@ function b64_to_utf8(encodeString) {
 }
 ```
 
+
+
 # 实例
 
 具体实例参考 `example` 文件夹
 
+
+
 # 预览
+
 ![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/1.PNG?raw=true)
 ![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/2.PNG?raw=true)
 ![效果](https://github.com/leffss/gowebssh/blob/master/screenshots/3.PNG?raw=true)
