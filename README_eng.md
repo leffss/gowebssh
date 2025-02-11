@@ -83,7 +83,7 @@ type message struct {
    format： `ip:port` ，like `192.168.223.111:22`
 2. login `{type:"login",data:"$username"}`
 3. set term type `{type:"term",data:"$term"}`    # default xterm
-4. auth `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
+4. auth `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey",passphrase:"$passphrase"}`
 5. resize window `{type:"resize",cols:40,rows:80}`
 6. ignore data stream `{type:"ignore",data:"$data"}`     # client send to server，server  will ignore，could use for zmodem file transmission record
 7. console stream `{type:"console",data:"$data"}`     # server send to client, client display it on the web browser console, could use for debug zmodem file transmission

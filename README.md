@@ -83,7 +83,7 @@ type message struct {
    地址格式： ip:port，例如 192.168.223.111:22
 2. 登录 `{type:"login",data:"$username"}`
 3. 设置 term 终端类型 `{type:"term",data:"$term"}`    # 可不设置，默认 xterm
-4. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey"}`
+4. 验证 `{type:"password",data:"$password"}` or `{type:"publickey",data:"$publickey",passphrase:"$passphrase"}`
 5. 窗口大小调整 `{type:"resize",cols:40,rows:80}`
 6. 忽略数据流 `{type:"ignore",data:"$data"}`     # 客户端发送到服务端，服务器忽略，可以用于 zmodem 文件传输记录
 7. console 数据流 `{type:"console",data:"$data"}`     # 服务端发送到客户端，客户端显示到 console 控制台的数据，
